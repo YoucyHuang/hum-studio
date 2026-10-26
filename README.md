@@ -2,7 +2,7 @@
 
 上传或现场录下哼唱 → 自动识别成音符 → 自动配和弦、贝斯、鼓 → 换成钢琴、小鸟、长笛等音色，可导出 WAV / MIDI。
 
-**在线使用：** https://youcyhuang.github.io/hum-studio/
+**在线使用：** 开通 GitHub Pages 后为 https://youcyhuang.github.io/hum-studio/ （需先把仓库设为 Public，再在 Settings → Pages 选 main 分支）
 
 ## 文件说明
 
