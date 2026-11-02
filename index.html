@@ -19,7 +19,8 @@ h2{font-size:16px;margin:0 0 12px}
 .row{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
 .ctl{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
 .ctl.inline{flex-direction:row;align-items:center;gap:6px;color:var(--ink)}
-select,input[type=number]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-width:0}
+select,input[type=number]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-width:0;max-width:100%}
+.ctl{max-width:100%}
 input[type=number]{width:84px}
 input[type=range]{width:120px;accent-color:var(--accent)}
 input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
@@ -35,7 +36,21 @@ input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
 #info{margin-top:8px}
 .chords{font-family:ui-monospace,Consolas,monospace;color:var(--ink)}
 .sep{width:1px;align-self:stretch;background:var(--line)}
-@media (max-width:600px){.sep{display:none}}
+#tracks{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.track{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:8px 10px;background:var(--bg);border:1px solid var(--line);border-left:4px solid var(--tc);border-radius:10px}
+.track.off{opacity:.5}
+.tname{width:118px;font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.track select{background:var(--card)}
+.track input[type=number]{width:70px;background:var(--card)}
+.track input[type=range]{width:100px}
+.tbtn{font:inherit;font-size:12px;font-weight:600;cursor:pointer;width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--muted);padding:0}
+.tbtn:hover{border-color:var(--accent)}
+.tbtn.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tbtn.solo.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.tvol{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.tright{margin-left:auto;display:flex;gap:6px}
+#addTrack{border-style:dashed;color:var(--muted)}
+@media (max-width:600px){.sep{display:none}.tname{width:100%}.tright{margin-left:0}}
 </style>
 </head>
 <body>
@@ -68,28 +83,17 @@ input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
   </section>
 
   <section class="card">
-    <h2>③ 编曲与音色</h2>
+    <h2>③ 编曲与音轨</h2>
     <div class="row">
-      <label class="ctl">旋律音色<select id="inst">
-        <option value="piano" selected>钢琴</option>
-        <option value="bird">小鸟</option>
-        <option value="flute">长笛</option>
-        <option value="box">八音盒</option>
-        <option value="strings">弦乐</option>
-        <option value="chip">8-bit 游戏机</option>
-      </select></label>
-      <label class="ctl">旋律八度<select id="oct"><option value="-1">低一个八度</option><option value="0">原调</option><option value="1" selected>高一个八度</option><option value="2">高两个八度</option></select></label>
-      <label class="ctl">伴奏风格<select id="style">
-        <option value="piano" selected>抒情钢琴</option>
-        <option value="pop">流行乐队（贝斯+鼓+弦乐）</option>
-        <option value="ambient">空灵氛围（铺底+八音盒）</option>
-        <option value="none">不要伴奏</option>
-      </select></label>
+      <label class="ctl">一键编曲风格<select id="style"></select></label>
       <label class="ctl">和弦变化<select id="chordRate"><option value="1" selected>每小节一个</option><option value="2">每两拍一个</option></select></label>
-      <div class="sep"></div>
-      <label class="ctl">旋律音量<input type="range" id="melVol" min="0" max="150" value="100"></label>
-      <label class="ctl">伴奏音量<input type="range" id="accVol" min="0" max="150" value="100"></label>
-      <label class="ctl inline"><input type="checkbox" id="orig">同时播放我的原声哼唱</label>
+      <label class="ctl">混响<input type="range" id="rev" min="0" max="80" value="28"></label>
+    </div>
+    <div id="tracks"></div>
+    <div class="row" style="margin-top:10px">
+      <select id="addTrack" class="btn"></select>
+      <input type="file" id="audioFile" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm,.aac,.flac" hidden>
+      <span class="muted">每条音轨都能单独换音色、调音量；M = 静音，S = 只听这一轨。同一段旋律可以加好几条“主旋律”叠出混合音色。</span>
     </div>
     <div class="row" style="margin-top:14px">
       <button id="play" class="btn primary" disabled>▶ 播放</button>
@@ -178,6 +182,7 @@ $('demo').onclick = async () => {
 async function loadBuffer(buf, name) {
   stop();
   S.buf = buf; S.name = name;
+  renderTracks();
   setStatus('正在识别旋律…');
   const x = await toMono16k(buf);
   S.frames = await detectPitch(x, p => setStatus('正在识别旋律… ' + Math.round(p * 100) + '%'));
@@ -436,36 +441,117 @@ function voicing(ch) {
   return ch.pcs.map(pc => { let m = 60 + pc; if (m > 66) m -= 12; return m; }).sort((a, b) => a - b);
 }
 
-function buildEvents(s) {
-  const ev = [], inst = $('inst').value, oct = +$('oct').value * 12, style = $('style').value, beat = s.beat;
-  for (const n of s.mel) ev.push({ g: 'mel', i: inst, m: n.m + oct, t: n.s, d: n.e - n.s, v: 0.8 });
-  if (style === 'none') return ev;
+// ---------- 音轨 ----------
+const KINDS = {
+  orig:  { name: '原声哼唱', audio: true, color: 'var(--rec)' },
+  audio: { name: '导入音频', audio: true, color: '#c0437a' },
+  mel:   { name: '主旋律', inst: 'piano', oct: 1, color: 'var(--accent)' },
+  harm:  { name: '和声（三度）', inst: 'strings', color: '#c98a2b' },
+  pad:   { name: '和弦铺底', inst: 'strings', color: '#7b6cc4' },
+  arp:   { name: '分解和弦', inst: 'piano', color: 'var(--accent2)', pats: { eighth: '八分分解', quarter: '四分琶音', block: '柱式和弦' } },
+  strum: { name: '扫弦', inst: 'guitar', color: '#a0663a', pats: { folk: '民谣扫弦', beat: '每拍一下' } },
+  bass:  { name: '贝斯', inst: 'bass', color: '#3d6fb6', pats: { eighth: '八分根音', long: '长音根音', rootfifth: '根音-五音' } },
+  drums: { name: '鼓', drums: true, color: '#8a8a8a', pats: { pop: '流行', soft: '轻柔（边击+沙锤）', dance: '舞曲（四踩）', shaker: '只要沙锤' } },
+};
+const ACC = new Set(['pad', 'arp', 'strum', 'bass', 'drums']);
+const INST_GROUPS = [
+  ['键盘', { piano: '钢琴', epiano: '电钢琴', organ: '风琴', box: '八音盒' }],
+  ['弹拨 / 敲击', { guitar: '木吉他', harp: '竖琴', guzheng: '古筝', kalimba: '拇指琴', marimba: '马林巴', glock: '钟琴' }],
+  ['弦乐 / 管乐', { strings: '弦乐', erhu: '二胡', flute: '长笛', clarinet: '单簧管', brass: '铜管', whistle: '口哨' }],
+  ['人声 / 合成', { choir: '人声合唱', lead: '合成器主音', warmpad: '温暖铺底', chip: '8-bit 游戏机', bird: '小鸟' }],
+  ['低音', { bass: '贝斯' }],
+];
+const PRESETS = {
+  piano:   { name: '抒情钢琴', rev: 28, tracks: [['bass', { inst: 'piano', pat: 'long' }], ['arp', { pat: 'eighth' }]] },
+  pop:     { name: '流行乐队（贝斯+鼓+弦乐）', rev: 15, tracks: [['bass', { pat: 'eighth' }], ['pad', {}], ['drums', { pat: 'pop' }]] },
+  folk:    { name: '民谣吉他（扫弦+贝斯+轻鼓）', rev: 20, tracks: [['strum', {}], ['bass', { pat: 'rootfifth' }], ['drums', { pat: 'soft' }]] },
+  lofi:    { name: 'Lo-fi 电钢琴', rev: 25, tracks: [['arp', { inst: 'epiano', pat: 'block' }], ['bass', { pat: 'long' }], ['drums', { pat: 'soft', vol: 80 }]] },
+  guofeng: { name: '国风（古筝+铺底）', rev: 45, tracks: [['pad', { inst: 'warmpad' }], ['arp', { inst: 'guzheng', pat: 'quarter' }], ['drums', { pat: 'shaker', vol: 70 }]] },
+  ambient: { name: '空灵氛围（铺底+八音盒）', rev: 55, tracks: [['pad', {}], ['bass', { inst: 'strings', pat: 'long', oct: 1, vol: 45 }], ['arp', { inst: 'box', pat: 'quarter' }]] },
+  none:    { name: '不要伴奏', rev: 25, tracks: [] },
+};
+let nextId = 1;
+function mkTrack(kind, o = {}) {
+  const K = KINDS[kind];
+  return { id: nextId++, kind, inst: K.inst || null, pat: K.pats ? Object.keys(K.pats)[0] : null, oct: K.oct || 0, offset: 0, vol: 100, mute: false, solo: false, ...o };
+}
+function applyPreset(key) {
+  const P = PRESETS[key];
+  S.tracks = S.tracks.filter(t => !ACC.has(t.kind)).concat(P.tracks.map(([k, o]) => mkTrack(k, o)));
+  $('rev').value = P.rev;
+}
+S.tracks = [mkTrack('orig', { mute: true, vol: 90 }), mkTrack('mel')];
+applyPreset('piano');
+
+const audibleFn = () => { const solo = S.tracks.some(t => t.solo); return t => !t.mute && (!solo || t.solo); };
+
+function thirdAbove(m, key) {
+  const sc = (key.mode === 'maj' ? MAJ_S : MIN_S).map(x => (x + key.pc) % 12), pc = x => ((x % 12) + 12) % 12;
+  let base = m; while (!sc.includes(pc(base))) base--;
+  const tgt = sc[(sc.indexOf(pc(base)) + 2) % 7];
+  return base + (tgt - pc(base) + 12) % 12;
+}
+
+function trackEvents(tr, s) {
+  const ev = [], beat = s.beat, o = tr.oct * 12;
+  const push = (m, t, d, v) => ev.push({ i: tr.inst, m: m + o, t, d, v });
+  if (tr.kind === 'mel') { for (const n of s.mel) push(n.m, n.s, n.e - n.s, 0.8); return ev; }
+  if (tr.kind === 'harm') { for (const n of s.mel) push(thirdAbove(n.m, s.key), n.s, n.e - n.s, 0.55); return ev; }
+  if (tr.kind === 'drums') return drumEvents(tr.pat, s);
   for (const ch of s.chords) {
     let b = 36 + ch.root; if (b > 43) b -= 12;
-    const vo = voicing(ch), lb = b + 12;
-    if (style === 'piano') {
-      const pat = [0, ch.i5, 12, 12 + ch.i3, 12 + ch.i5, 12 + ch.i3, 12, ch.i5];
-      const steps = Math.round(ch.d / (beat / 2));
-      ev.push({ g: 'acc', i: 'piano', m: b, t: ch.t, d: ch.d, v: 0.35 });
-      for (let k = 0; k < steps; k++) ev.push({ g: 'acc', i: 'piano', m: lb + pat[k % 8], t: ch.t + k * beat / 2, d: beat * 0.9, v: k % 2 ? 0.22 : 0.28 });
-    } else if (style === 'pop') {
-      for (let k = 0; k < Math.round(ch.d / (beat / 2)); k++) ev.push({ g: 'acc', i: 'bass', m: b, t: ch.t + k * beat / 2, d: beat * 0.45, v: k % 2 ? 0.45 : 0.6 });
-      for (const m of vo) ev.push({ g: 'acc', i: 'strings', m, t: ch.t, d: ch.d, v: 0.16 });
-    } else if (style === 'ambient') {
-      for (const m of vo) ev.push({ g: 'acc', i: 'strings', m, t: ch.t, d: ch.d + 0.2, v: 0.15 });
-      ev.push({ g: 'acc', i: 'strings', m: lb, t: ch.t, d: ch.d, v: 0.14 });
-      const arp = [vo[0] + 12, vo[1] + 12, vo[2] + 12, vo[1] + 12];
-      for (let k = 0; k < Math.round(ch.d / beat); k++) ev.push({ g: 'acc', i: 'box', m: arp[k % 4], t: ch.t + k * beat, d: beat, v: 0.2 });
+    const vo = voicing(ch), lb = b + 12, steps = Math.round(ch.d / (beat / 2)), beats = Math.round(ch.d / beat);
+    if (tr.kind === 'pad') for (const m of vo) push(m, ch.t, ch.d + 0.2, 0.16);
+    else if (tr.kind === 'arp') {
+      if (tr.pat === 'eighth') {
+        const pat = [0, ch.i5, 12, 12 + ch.i3, 12 + ch.i5, 12 + ch.i3, 12, ch.i5];
+        for (let k = 0; k < steps; k++) push(lb + pat[k % 8], ch.t + k * beat / 2, beat * 0.9, k % 2 ? 0.22 : 0.28);
+      } else if (tr.pat === 'quarter') {
+        const arp = [vo[0] + 12, vo[1] + 12, vo[2] + 12, vo[1] + 12];
+        for (let k = 0; k < beats; k++) push(arp[k % 4], ch.t + k * beat, beat, 0.2);
+      } else {
+        for (let k = 0; k < beats; k += 2) for (const m of [lb, ...vo]) push(m, ch.t + k * beat, Math.min(2, beats - k) * beat * 0.95, 0.18);
+      }
+    } else if (tr.kind === 'strum') {
+      const notes = [lb, ...vo, vo[0] + 12].sort((a, b) => a - b);
+      const hits = tr.pat === 'folk' ? { 0: ['D', 1], 2: ['D', .8], 3: ['U', .6], 5: ['U', .6], 6: ['D', .8], 7: ['U', .55] } : { 0: ['D', 1], 2: ['D', .75], 4: ['D', .85], 6: ['D', .75] };
+      const k0 = Math.round(ch.t / (beat / 2));
+      for (let k = 0; k < steps; k++) {
+        const h = hits[(k0 + k) % 8]; if (!h) continue;
+        const ns = h[0] === 'D' ? notes : notes.slice(1).reverse();
+        ns.forEach((m, i) => push(m, ch.t + k * beat / 2 + i * 0.014, beat, h[1] * 0.3));
+      }
+    } else if (tr.kind === 'bass') {
+      if (tr.pat === 'eighth') for (let k = 0; k < steps; k++) push(b, ch.t + k * beat / 2, beat * 0.45, k % 2 ? 0.45 : 0.6);
+      else if (tr.pat === 'long') push(b, ch.t, ch.d, 0.35);
+      else for (let k = 0; k < beats; k++) {
+        const f5 = b + ch.i5 - 12 >= 28 ? b + ch.i5 - 12 : b + ch.i5;
+        push(k % 2 ? f5 : b, ch.t + k * beat, beat * 0.9, k % 2 ? 0.45 : 0.55);
+      }
     }
   }
-  if (style === 'pop') {
-    for (let j = 0; j * beat < s.end - 1e-6; j++) {
-      const t = j * beat, p = j % 4;
-      if (p === 0 || p === 2) ev.push({ g: 'acc', dr: 'kick', t, v: 0.9 });
-      if (p === 2) ev.push({ g: 'acc', dr: 'kick', t: t + beat / 2, v: 0.6 });
-      if (p === 1 || p === 3) ev.push({ g: 'acc', dr: 'snare', t, v: 0.8 });
-      ev.push({ g: 'acc', dr: 'hat', t, v: 0.7 }, { g: 'acc', dr: 'hat', t: t + beat / 2, v: 0.45 });
-    }
+  return ev;
+}
+
+function drumEvents(pat, s) {
+  const ev = [], beat = s.beat, hit = (dr, t, v) => ev.push({ dr, t, v });
+  for (let j = 0; j * beat < s.end - 1e-6; j++) {
+    const t = j * beat, p = j % 4, h = t + beat / 2;
+    if (pat === 'pop') {
+      if (p === 0 || p === 2) hit('kick', t, 0.9);
+      if (p === 2) hit('kick', h, 0.6);
+      if (p === 1 || p === 3) hit('snare', t, 0.8);
+      hit('hat', t, 0.7); hit('hat', h, 0.45);
+    } else if (pat === 'soft') {
+      if (p === 0) hit('kick', t, 0.6);
+      if (p === 2) hit('kick', t, 0.45);
+      if (p === 1 || p === 3) hit('rim', t, 0.7);
+      hit('shaker', t, 0.5); hit('shaker', h, 0.35);
+    } else if (pat === 'dance') {
+      hit('kick', t, 0.9);
+      if (p === 1 || p === 3) hit('clap', t, 0.8);
+      hit('hat', h, 0.75);
+    } else { hit('shaker', t, 0.5); hit('shaker', h, 0.35); }
   }
   return ev;
 }
@@ -573,7 +659,177 @@ const INST = {
     lp.connect(g); g.connect(out);
     osc(ctx, 'triangle', f, lp, t, t + d + 0.4); osc(ctx, 'sine', f, lp, t, t + d + 0.4, 0.6);
   },
+  epiano(ctx, out, m, t, d, v) {
+    const f = mtof(m), stopAt = t + d + 0.6;
+    const c = ctx.createOscillator(); c.frequency.value = f;
+    const mod = ctx.createOscillator(); mod.frequency.value = f;
+    const mg = ctx.createGain(); mg.gain.setValueAtTime(f * 1.8, t); mg.gain.setTargetAtTime(f * 0.25, t, 0.3);
+    mod.connect(mg); mg.connect(c.frequency);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v * 0.45, t + 0.004);
+    g.gain.setTargetAtTime(v * 0.12, t + 0.004, 0.6); g.gain.setTargetAtTime(0, t + d, 0.15);
+    c.connect(g); g.connect(out);
+    c.start(t); mod.start(t); c.stop(stopAt); mod.stop(stopAt);
+  },
+  organ(ctx, out, m, t, d, v) {
+    const f = mtof(m), stopAt = t + d + 0.2, g = ctx.createGain();
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v * 0.22, t + 0.015);
+    g.gain.setValueAtTime(v * 0.22, t + d); g.gain.linearRampToValueAtTime(0, t + d + 0.08);
+    g.connect(out);
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 6.5;
+    const lg = ctx.createGain(); lg.gain.value = 6; lfo.connect(lg); lfo.start(t); lfo.stop(stopAt);
+    for (const [h, a] of [[0.5, .5], [1, 1], [2, .6], [3, .3], [4, .2]]) {
+      if (f * h > ctx.sampleRate * 0.45) break;
+      lg.connect(osc(ctx, 'sine', f * h, g, t, stopAt, a).detune);
+    }
+  },
+  marimba(ctx, out, m, t, d, v) {
+    const f = mtof(m), T = clamp(0.45 - (m - 60) * 0.01, 0.12, 0.8);
+    for (const [h, a, dec] of [[1, 1, T], [4, .25, 0.04], [10, .08, 0.015]]) {
+      if (f * h > ctx.sampleRate * 0.45) continue;
+      const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v * 0.5 * a, t + 0.002); g.gain.setTargetAtTime(0, t + 0.002, dec);
+      g.connect(out); osc(ctx, 'sine', f * h, g, t, t + T * 6 + 0.1);
+    }
+  },
+  glock(ctx, out, m, t, d, v) {
+    const f = mtof(m);
+    for (const [h, a, dec] of [[1, 1, 0.9], [2.76, .4, 0.35], [5.4, .2, 0.15], [8.93, .1, 0.08]]) {
+      if (f * h > ctx.sampleRate * 0.45) continue;
+      const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v * 0.25 * a, t + 0.002); g.gain.setTargetAtTime(0, t + 0.002, dec);
+      g.connect(out); osc(ctx, 'sine', f * h, g, t, t + dec * 7);
+    }
+  },
+  kalimba(ctx, out, m, t, d, v) {
+    const f = mtof(m);
+    for (const [h, a, dec] of [[1, 1, 0.5], [5.95, .3, 0.06]]) {
+      if (f * h > ctx.sampleRate * 0.45) continue;
+      const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v * 0.5 * a, t + 0.002); g.gain.setTargetAtTime(0, t + 0.002, dec);
+      g.connect(out);
+      const o = osc(ctx, 'sine', f * h, g, t, t + dec * 7);
+      o.frequency.setValueAtTime(f * h * 1.01, t); o.frequency.setTargetAtTime(f * h, t, 0.02);
+    }
+  },
+  guitar(ctx, out, m, t, d, v) { pluck(ctx, out, 'guitar', m, t, d, v); },
+  harp(ctx, out, m, t, d, v) { pluck(ctx, out, 'harp', m, t, d, v); },
+  guzheng(ctx, out, m, t, d, v) { pluck(ctx, out, 'guzheng', m, t, d, v); },
+  erhu(ctx, out, m, t, d, v) {
+    const f = mtof(m), stopAt = t + d + 0.3;
+    const o = ctx.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(f * 0.96, t); o.frequency.setTargetAtTime(f, t, 0.03);
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 6;
+    const lg = ctx.createGain(); lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(f * 0.012, t + Math.min(0.4, d)); lfo.connect(lg); lg.connect(o.frequency);
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 350;
+    const pk = ctx.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = 1100; pk.Q.value = 1.2; pk.gain.value = 8;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3200;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v * 0.24, t + 0.08);
+    g.gain.setValueAtTime(v * 0.24, t + Math.max(d, 0.09)); g.gain.linearRampToValueAtTime(0, t + Math.max(d, 0.09) + 0.15);
+    o.connect(hp); hp.connect(pk); pk.connect(lp); lp.connect(g); g.connect(out);
+    o.start(t); lfo.start(t); o.stop(stopAt); lfo.stop(stopAt);
+  },
+  clarinet(ctx, out, m, t, d, v) {
+    const f = mtof(m), stopAt = t + d + 0.2;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = Math.min(f * 4, 9000); lp.Q.value = 0.7;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v * 0.2, t + 0.04);
+    g.gain.setValueAtTime(v * 0.2, t + Math.max(d, 0.05)); g.gain.linearRampToValueAtTime(0, t + Math.max(d, 0.05) + 0.08);
+    lp.connect(g); g.connect(out); osc(ctx, 'square', f, lp, t, stopAt);
+  },
+  brass(ctx, out, m, t, d, v) {
+    const f = mtof(m), stopAt = t + d + 0.25;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 1;
+    lp.frequency.setValueAtTime(f * 1.5, t); lp.frequency.linearRampToValueAtTime(Math.min(f * 7, 12000), t + 0.07); lp.frequency.setTargetAtTime(Math.min(f * 4, 9000), t + 0.07, 0.2);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v * 0.3, t + 0.04);
+    g.gain.setValueAtTime(v * 0.3, t + Math.max(d, 0.05)); g.gain.linearRampToValueAtTime(0, t + Math.max(d, 0.05) + 0.12);
+    for (const det of [-5, 5]) osc(ctx, 'sawtooth', f, lp, t, stopAt).detune.value = det;
+    lp.connect(g); g.connect(out);
+  },
+  whistle(ctx, out, m, t, d, v) {
+    const f = mtof(m), stopAt = t + d + 0.2;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v * 0.3, t + 0.04);
+    g.gain.setValueAtTime(v * 0.3, t + Math.max(d, 0.05)); g.gain.linearRampToValueAtTime(0, t + Math.max(d, 0.05) + 0.08);
+    g.connect(out);
+    const o = osc(ctx, 'sine', f, g, t, stopAt);
+    o.frequency.setValueAtTime(f * 0.95, t); o.frequency.setTargetAtTime(f, t, 0.02);
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 6;
+    const lg = ctx.createGain(); lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(f * 0.01, t + 0.3); lfo.connect(lg); lg.connect(o.frequency);
+    lfo.start(t); lfo.stop(stopAt);
+    const n = ctx.createBufferSource(); n.buffer = noise(ctx);
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = 6;
+    const ng = ctx.createGain(); ng.gain.value = v * 0.05;
+    n.connect(bp); bp.connect(ng); ng.connect(g); n.start(t); n.stop(stopAt);
+  },
+  choir(ctx, out, m, t, d, v) {
+    const f = mtof(m), stopAt = t + d + 0.5;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v * 1.8, t + Math.min(0.15, d * 0.5));
+    g.gain.setValueAtTime(v * 1.8, t + d); g.gain.linearRampToValueAtTime(0, t + d + 0.3);
+    g.connect(out);
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 5;
+    const lg = ctx.createGain(); lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(f * 0.006, t + 0.4); lfo.connect(lg);
+    lfo.start(t); lfo.stop(stopAt);
+    const src = ctx.createGain();
+    for (const det of [-9, 0, 9]) { const o = osc(ctx, 'sawtooth', f, src, t, stopAt, 0.33); o.detune.value = det; lg.connect(o.frequency); }
+    for (const [ff, q, a] of [[750, 6, 1], [1150, 8, .6], [2700, 10, .3]]) {
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = ff; bp.Q.value = q;
+      const ag = ctx.createGain(); ag.gain.value = a; src.connect(bp); bp.connect(ag); ag.connect(g);
+    }
+  },
+  lead(ctx, out, m, t, d, v) {
+    const f = mtof(m), stopAt = t + d + 0.2;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = Math.min(f * 6, 9000); lp.Q.value = 2;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v * 0.25, t + 0.01);
+    g.gain.setValueAtTime(v * 0.25, t + Math.max(d, 0.02)); g.gain.linearRampToValueAtTime(0, t + Math.max(d, 0.02) + 0.1);
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 5.5;
+    const lg = ctx.createGain(); lg.gain.setValueAtTime(0, t); lg.gain.setValueAtTime(0, t + 0.25); lg.gain.linearRampToValueAtTime(f * 0.008, t + 0.6); lfo.connect(lg);
+    lfo.start(t); lfo.stop(stopAt);
+    for (const det of [-12, 12]) { const o = osc(ctx, 'sawtooth', f, lp, t, stopAt); o.detune.value = det; lg.connect(o.frequency); }
+    lp.connect(g); g.connect(out);
+  },
+  warmpad(ctx, out, m, t, d, v) {
+    const f = mtof(m), a = Math.min(0.5, d * 0.5), stopAt = t + d + 0.8;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = Math.min(f * 2 + 400, 4000);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v * 0.3, t + a);
+    g.gain.setValueAtTime(v * 0.3, t + d); g.gain.linearRampToValueAtTime(0, t + d + 0.6);
+    for (const det of [-10, 0, 10]) osc(ctx, 'sawtooth', f, lp, t, stopAt, 0.6).detune.value = det;
+    lp.connect(g); g.connect(out);
+  },
 };
+
+// 拨弦类（Karplus-Strong）：每个音高只算一次，缓存起来
+const PLUCK = { guitar: { len: 3, decay: 0.996, bright: 0.6, gain: 0.85, rel: 0.08 }, harp: { len: 4, decay: 0.9985, bright: 0.25, gain: 0.7, rel: 0.35 }, guzheng: { len: 3.5, decay: 0.997, bright: 0.9, gain: 0.8, rel: 0.2, vib: true } };
+const pluckCache = new Map();
+function pluckBuf(ctx, kind, m) {
+  const sr = ctx.sampleRate, key = sr + ':' + kind + ':' + m;
+  if (pluckCache.has(key)) return pluckCache.get(key);
+  const P = PLUCK[kind], len = Math.ceil(sr * P.len), b = ctx.createBuffer(1, len, sr), y = b.getChannelData(0);
+  const D = Math.max(3, sr / mtof(m) - 0.5), N = Math.floor(D), fr = D - N;
+  let lp = 0, mean = 0;
+  for (let i = 0; i <= N + 1; i++) { lp += P.bright * ((Math.random() * 2 - 1) - lp); y[i] = lp; mean += lp; }
+  mean /= N + 2;
+  let peak = 1e-6;
+  for (let i = 0; i <= N + 1; i++) { y[i] -= mean; peak = Math.max(peak, Math.abs(y[i])); }
+  for (let i = 0; i <= N + 1; i++) y[i] /= peak;
+  for (let i = N + 2; i < len; i++) {
+    const a = y[i - N] * (1 - fr) + y[i - N - 1] * fr, c = y[i - N - 1] * (1 - fr) + y[i - N - 2] * fr;
+    y[i] = P.decay * 0.5 * (a + c);
+  }
+  pluckCache.set(key, b); return b;
+}
+function pluck(ctx, out, kind, m, t, d, v) {
+  const P = PLUCK[kind], src = ctx.createBufferSource(); src.buffer = pluckBuf(ctx, kind, m);
+  const g = ctx.createGain(); g.gain.setValueAtTime(v * P.gain, t); g.gain.setTargetAtTime(0, t + Math.max(d, 0.05), P.rel);
+  if (P.vib && d > 0.3) {
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 5.5;
+    const lg = ctx.createGain(); lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(18, t + Math.min(0.5, d)); lfo.connect(lg); lg.connect(src.detune);
+    lfo.start(t); lfo.stop(t + P.len);
+  }
+  src.connect(g); g.connect(out); src.start(t); src.stop(t + Math.min(P.len, d + P.rel * 6 + 0.05));
+}
 const DRUM = {
   kick(ctx, out, t, v) {
     const o = ctx.createOscillator(), g = ctx.createGain();
@@ -596,43 +852,90 @@ const DRUM = {
     const g = ctx.createGain(); g.gain.setValueAtTime(v * 0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
     n.connect(hp); hp.connect(g); g.connect(out); n.start(t); n.stop(t + 0.06);
   },
+  rim(ctx, out, t, v) {
+    const o = ctx.createOscillator(), og = ctx.createGain(); o.type = 'triangle'; o.frequency.value = 1700;
+    og.gain.setValueAtTime(v * 0.3, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+    o.connect(og); og.connect(out); o.start(t); o.stop(t + 0.05);
+    const n = ctx.createBufferSource(); n.buffer = noise(ctx);
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3000; bp.Q.value = 2;
+    const g = ctx.createGain(); g.gain.setValueAtTime(v * 0.25, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
+    n.connect(bp); bp.connect(g); g.connect(out); n.start(t); n.stop(t + 0.04);
+  },
+  shaker(ctx, out, t, v) {
+    const n = ctx.createBufferSource(); n.buffer = noise(ctx);
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 6500; bp.Q.value = 1;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v * 0.2, t + 0.015); g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    n.connect(bp); bp.connect(g); g.connect(out); n.start(t); n.stop(t + 0.09);
+  },
+  clap(ctx, out, t, v) {
+    const n = ctx.createBufferSource(); n.buffer = noise(ctx);
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1500; bp.Q.value = 0.8;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0, t);
+    for (const k of [0, 0.011, 0.022]) { g.gain.setValueAtTime(v * 0.45, t + k); g.gain.exponentialRampToValueAtTime(0.02, t + k + 0.009); }
+    g.gain.setValueAtTime(v * 0.4, t + 0.033); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    n.connect(bp); bp.connect(g); g.connect(out); n.start(t); n.stop(t + 0.22);
+  },
 };
-const REV = { piano: 0.28, pop: 0.15, ambient: 0.55, none: 0.25 };
 
-function renderSong(ctx, dest, at, s) {
+// 音频轨在歌曲时间轴上的位置：歌曲时间 start 处，播放录音里 base 秒的位置
+function audioSpan(tr, s) {
+  const buf = tr.kind === 'orig' ? S.buf : tr.buf;
+  if (!buf) return null;
+  return { buf, base: tr.kind === 'orig' ? s.t0 : 0, start: tr.offset || 0 };
+}
+function songLength(s) {
+  let end = s.end; const on = audibleFn();
+  for (const tr of S.tracks) {
+    const sp = KINDS[tr.kind].audio && on(tr) && audioSpan(tr, s);
+    if (sp) end = Math.max(end, sp.start + sp.buf.duration - sp.base);
+  }
+  return end;
+}
+
+function renderSong(ctx, dest, at, s, from = 0, onlyAudible = false) {
   const mix = ctx.createGain(); mix.gain.value = 0.8;
   const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
   const conv = ctx.createConvolver(); conv.buffer = impulse(ctx, 2.6);
-  const rg = ctx.createGain(); rg.gain.value = REV[$('style').value];
+  const rg = ctx.createGain(); rg.gain.value = $('rev').value / 100;
   const outG = ctx.createGain(); outG.gain.value = 0.75; // 给压缩器之后留余量，避免爆音
-  mix.connect(comp); mix.connect(conv); conv.connect(rg); rg.connect(comp); comp.connect(outG); outG.connect(dest);
-  const bus = { mel: ctx.createGain(), acc: ctx.createGain() };
-  bus.mel.gain.value = $('melVol').value / 100; bus.acc.gain.value = $('accVol').value / 100;
-  bus.mel.connect(mix); bus.acc.connect(mix);
-  for (const e of buildEvents(s)) {
-    if (e.dr) DRUM[e.dr](ctx, bus[e.g], at + e.t, e.v);
-    else INST[e.i](ctx, bus[e.g], e.m, at + e.t, e.d, e.v);
+  // 最后一道限幅：音轨叠得多时也不会爆音
+  const lim = ctx.createDynamicsCompressor(); lim.threshold.value = -2; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.002; lim.release.value = 0.1;
+  mix.connect(comp); mix.connect(conv); conv.connect(rg); rg.connect(comp); comp.connect(outG); outG.connect(lim); lim.connect(dest);
+  const buses = new Map(), on = audibleFn();
+  for (const tr of S.tracks) {
+    if (onlyAudible && !on(tr)) continue;
+    const g = ctx.createGain(); g.gain.value = on(tr) ? tr.vol / 100 : 0; buses.set(tr.id, g);
+    if (KINDS[tr.kind].audio) {
+      const sp = audioSpan(tr, s); if (!sp) continue;
+      const songT = Math.max(from, sp.start), off = sp.base + songT - sp.start;
+      if (off >= sp.buf.duration) continue;
+      const src = ctx.createBufferSource(); src.buffer = sp.buf;
+      src.connect(g); g.connect(comp); src.start(at + songT - from, Math.max(0, off));
+      continue;
+    }
+    g.connect(mix);
+    for (const e of trackEvents(tr, s)) {
+      if (e.t < from - 1e-3) continue;
+      if (e.dr) DRUM[e.dr](ctx, g, at + e.t - from, e.v);
+      else INST[e.i](ctx, g, e.m, at + e.t - from, e.d, e.v);
+    }
   }
-  if ($('orig').checked && S.buf) {
-    const src = ctx.createBufferSource(); src.buffer = S.buf;
-    const g = ctx.createGain(); g.gain.value = 0.9;
-    src.connect(g); g.connect(comp); src.start(at, s.t0);
-  }
+  return { buses, rg };
 }
 
 // ---------- 播放 / 导出 ----------
-function play() {
+const playPos = () => S.play ? getCtx().currentTime - S.play.at + S.play.from : 0;
+function play(from = 0) {
   if (!S.song) return;
   stop();
   const ctx = getCtx(); ctx.resume();
   const master = ctx.createGain(); master.connect(ctx.destination);
-  const at = ctx.currentTime + 0.12;
-  renderSong(ctx, master, at, S.song);
-  S.play = { master, at };
+  const at = ctx.currentTime + 0.12, len = songLength(S.song);
+  S.play = { master, at, from, ...renderSong(ctx, master, at, S.song, from) };
   const tick = () => {
     if (!S.play || S.play.master !== master) return;
-    const pos = ctx.currentTime - at;
-    if (pos > S.song.end + 2.5) { stop(); return; }
+    const pos = ctx.currentTime - at + from;
+    if (pos > len + 2.5) { stop(); return; }
     draw(pos);
     const wrap = $('rollWrap'), x = pos * S.layout.pps;
     if (x > wrap.scrollLeft + wrap.clientWidth * 0.8 || x < wrap.scrollLeft) wrap.scrollLeft = x - wrap.clientWidth * 0.2;
@@ -647,8 +950,15 @@ function stop() {
   setTimeout(() => m.disconnect(), 250);
   draw();
 }
-$('play').onclick = play;
+$('play').onclick = () => play();
 $('stop').onclick = stop;
+// 改了设置：正在播放的话从当前位置接着放
+const restart = () => { if (S.play) play(playPos()); };
+function applyGains() {
+  if (!S.play) return;
+  const on = audibleFn(), now = getCtx().currentTime;
+  for (const tr of S.tracks) { const g = S.play.buses.get(tr.id); if (g) g.gain.setTargetAtTime(on(tr) ? tr.vol / 100 : 0, now, 0.02); }
+}
 
 function download(blob, name) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
@@ -659,8 +969,8 @@ $('wav').onclick = async () => {
   if (!S.song) return;
   $('wav').disabled = true; $('wav').textContent = '正在生成…';
   try {
-    const sr = 44100, oc = new OfflineAudioContext(2, Math.ceil(sr * (S.song.end + 3)), sr);
-    renderSong(oc, oc.destination, 0, S.song);
+    const sr = 44100, oc = new OfflineAudioContext(2, Math.ceil(sr * (songLength(S.song) + 3)), sr);
+    renderSong(oc, oc.destination, 0, S.song, 0, true);
     download(new Blob([wav(await oc.startRendering())], { type: 'audio/wav' }), S.name + '-编曲.wav');
   } finally { $('wav').disabled = false; $('wav').textContent = '导出 WAV 音频'; }
 };
@@ -674,8 +984,8 @@ function wav(buf) {
   return ab;
 }
 
-const PROG = { piano: 0, box: 10, strings: 48, flute: 73, bird: 123, chip: 80, bass: 33 };
-const DRUM_NOTE = { kick: 36, snare: 38, hat: 42 };
+const PROG = { piano: 0, epiano: 4, organ: 16, box: 10, guitar: 25, harp: 46, guzheng: 107, kalimba: 108, marimba: 12, glock: 9, strings: 48, erhu: 110, flute: 73, clarinet: 71, brass: 61, whistle: 78, choir: 52, lead: 81, warmpad: 89, chip: 80, bird: 123, bass: 33 };
+const DRUM_NOTE = { kick: 36, snare: 38, hat: 42, rim: 37, shaker: 70, clap: 39 };
 $('mid').onclick = () => {
   const s = S.song; if (!s) return;
   const ppq = 480, tk = x => Math.max(0, Math.round(x / s.beat * ppq));
@@ -693,20 +1003,24 @@ $('mid').onclick = () => {
     { tick: 0, ord: 0, data: [0xFF, 0x51, 3, us >> 16 & 255, us >> 8 & 255, us & 255] },
     { tick: 0, ord: 0, data: [0xFF, 0x58, 4, 4, 2, 24, 8] },
   ])];
-  const groups = new Map(); let nextCh = 1;
-  for (const e of buildEvents(s)) {
-    const k = e.g === 'mel' ? 'mel' : e.dr ? 'drums' : e.i;
-    if (!groups.has(k)) {
-      let ch = k === 'mel' ? 0 : k === 'drums' ? 9 : nextCh++;
-      if (ch === 9 && k !== 'drums') ch = nextCh++;
-      const evs = k === 'drums' ? [] : [{ tick: 0, ord: 0, data: [0xC0 | ch, PROG[k === 'mel' ? e.i : k]] }];
-      groups.set(k, { ch, evs });
+  const audible = audibleFn(), CH = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15];
+  let nextCh = 0;
+  for (const tr of S.tracks) {
+    if (KINDS[tr.kind].audio || !audible(tr)) continue;
+    const drums = tr.kind === 'drums', ch = drums ? 9 : CH[nextCh++ % CH.length];
+    const name = [...new TextEncoder().encode(trackLabel(tr))];
+    const evs = [
+      { tick: 0, ord: 0, data: [0xFF, 0x03, ...vlq(name.length), ...name] },
+      { tick: 0, ord: 0, data: [0xB0 | ch, 7, clamp(tr.vol, 0, 127)] },
+    ];
+    if (!drums) evs.push({ tick: 0, ord: 0, data: [0xC0 | ch, PROG[tr.inst]] });
+    for (const e of trackEvents(tr, s)) {
+      const m = e.dr ? DRUM_NOTE[e.dr] : clamp(e.m, 0, 127), vel = clamp(Math.round(e.v * 110) + 10, 1, 127);
+      const on = tk(e.t), off = Math.max(on + 1, tk(e.t + (e.dr ? 0.05 : e.d)));
+      evs.push({ tick: on, ord: 2, data: [0x90 | ch, m, vel] }, { tick: off, ord: 1, data: [0x80 | ch, m, 0] });
     }
-    const gr = groups.get(k), m = e.dr ? DRUM_NOTE[e.dr] : clamp(e.m, 0, 127), vel = clamp(Math.round(e.v * 110) + 10, 1, 127);
-    const on = tk(e.t), off = Math.max(on + 1, tk(e.t + (e.dr ? 0.05 : e.d)));
-    gr.evs.push({ tick: on, ord: 2, data: [0x90 | gr.ch, m, vel] }, { tick: off, ord: 1, data: [0x80 | gr.ch, m, 0] });
+    tracks.push(chunk(evs));
   }
-  for (const g of groups.values()) tracks.push(chunk(g.evs));
   const bytes = [0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 1, 0, tracks.length, ppq >> 8, ppq & 255, ...tracks.flat()];
   download(new Blob([new Uint8Array(bytes)], { type: 'audio/midi' }), S.name + '-编曲.mid');
 };
@@ -773,7 +1087,98 @@ $('roll').addEventListener('click', e => {
 })();
 ['bpm', 'grid', 'key', 'snapKey', 'chordRate'].forEach(id => $(id).addEventListener('change', () => S.raw.length && rebuild()));
 $('sens').addEventListener('change', () => rebuildNotes(false));
-['inst', 'oct', 'style', 'melVol', 'accVol', 'orig'].forEach(id => $(id).addEventListener('change', () => { if (S.play) play(); }));
+
+// ---------- 音轨面板 ----------
+const INST_NAME = Object.assign({}, ...INST_GROUPS.map(g => g[1]));
+function trackLabel(tr) {
+  if (tr.kind === 'audio') return tr.name;
+  return KINDS[tr.kind].name + (tr.inst ? ' · ' + INST_NAME[tr.inst] : '');
+}
+function el(tag, props = {}, kids = []) {
+  const e = Object.assign(document.createElement(tag), props);
+  for (const k of [].concat(kids)) e.append(k);
+  return e;
+}
+function makeSelect(opts, val, onChange) {
+  const sel = el('select');
+  for (const o of opts) {
+    if (Array.isArray(o)) {
+      const og = el('optgroup', { label: o[0] });
+      for (const [v, t] of Object.entries(o[1])) og.append(new Option(t, v));
+      sel.append(og);
+    } else sel.append(new Option(o.t, o.v));
+  }
+  sel.value = val;
+  sel.onchange = () => onChange(sel.value);
+  return sel;
+}
+function markCustom() { $('style').value = 'custom'; }
+function renderTracks() {
+  const box = $('tracks'), on = audibleFn();
+  box.innerHTML = '';
+  for (const tr of S.tracks) {
+    const K = KINDS[tr.kind], row = el('div', { className: 'track' + (on(tr) ? '' : ' off') });
+    row.style.setProperty('--tc', K.color);
+    const name = tr.kind === 'audio' ? '🎵 ' + tr.name : tr.kind === 'orig' && !S.buf ? K.name + '（未载入）' : K.name;
+    row.append(el('div', { className: 'tname', textContent: name, title: name }));
+    const set = (key, rerender) => v => { tr[key] = v; markCustom(); if (rerender) renderTracks(); restart(); };
+    if (tr.inst) row.append(makeSelect(INST_GROUPS, tr.inst, set('inst')));
+    if (K.pats) row.append(makeSelect(Object.entries(K.pats).map(([v, t]) => ({ v, t })), tr.pat, set('pat')));
+    if (!K.audio && !K.drums) row.append(makeSelect([-2, -1, 0, 1, 2].map(v => ({ v, t: v ? (v > 0 ? '高' : '低') + Math.abs(v) + ' 个八度' : '原八度' })), tr.oct, v => set('oct')(+v)));
+    if (K.audio) {
+      const off = el('input', { type: 'number', step: 0.05, value: tr.offset, title: '对齐偏移（秒）：正数 = 往后推，负数 = 往前提' });
+      off.onchange = () => { tr.offset = +off.value || 0; restart(); };
+      row.append(el('label', { className: 'tvol', title: off.title }, ['偏移(秒)', off]));
+    }
+    const vol = el('input', { type: 'range', min: 0, max: 150, value: tr.vol });
+    vol.oninput = () => { tr.vol = +vol.value; applyGains(); };
+    row.append(el('label', { className: 'tvol' }, ['音量', vol]));
+    const toggle = (key, txt, cls, title) => {
+      const b = el('button', { className: 'tbtn ' + cls + (tr[key] ? ' on' : ''), textContent: txt, title });
+      b.onclick = () => { tr[key] = !tr[key]; renderTracks(); applyGains(); };
+      return b;
+    };
+    const del = el('button', { className: 'tbtn', textContent: '✕', title: '删除这条音轨' });
+    del.onclick = () => { S.tracks = S.tracks.filter(t => t !== tr); markCustom(); renderTracks(); restart(); };
+    row.append(el('div', { className: 'tright' }, [toggle('mute', 'M', 'mute', '静音'), toggle('solo', 'S', 'solo', '只听这一轨'), del]));
+    box.append(row);
+  }
+  renderAddMenu();
+}
+function renderAddMenu() {
+  const a = $('addTrack'); a.innerHTML = '';
+  a.append(new Option('＋ 添加音轨…', ''));
+  for (const k of ['mel', 'harm', 'pad', 'arp', 'strum', 'bass', 'drums']) a.append(new Option(KINDS[k].name + (k === 'mel' ? '（再叠一种音色）' : ''), k));
+  const o = new Option('原声哼唱' + (S.tracks.some(t => t.kind === 'orig') ? '（已在列表里）' : ''), 'orig');
+  o.disabled = S.tracks.some(t => t.kind === 'orig');
+  a.append(o, new Option('导入一段音频（人声 / 伴奏）…', 'file'));
+  a.value = '';
+}
+$('addTrack').onchange = () => {
+  const k = $('addTrack').value; $('addTrack').value = '';
+  if (!k) return;
+  if (k === 'file') { $('audioFile').click(); return; }
+  S.tracks.push(mkTrack(k, k === 'mel' ? { inst: 'flute', vol: 70 } : {}));
+  markCustom(); renderTracks(); restart();
+};
+$('audioFile').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try {
+    const buf = await getCtx().decodeAudioData(await f.arrayBuffer());
+    S.tracks.push(mkTrack('audio', { buf, name: f.name.replace(/\.[^.]+$/, '') }));
+    renderTracks(); restart();
+  } catch (err) { setStatus('无法读取这个音频文件（' + err.message + '）。'); }
+};
+(() => {
+  const st = $('style');
+  for (const [k, p] of Object.entries(PRESETS)) st.add(new Option(p.name, k));
+  const c = new Option('自定义', 'custom'); c.hidden = true; st.add(c);
+  st.value = 'piano';
+  st.onchange = () => { if (st.value === 'custom') return; applyPreset(st.value); renderTracks(); restart(); };
+})();
+$('rev').oninput = () => { if (S.play) S.play.rg.gain.setTargetAtTime($('rev').value / 100, getCtx().currentTime, 0.05); };
+renderTracks();
 window.addEventListener('resize', () => draw());
 draw();
 </script>
