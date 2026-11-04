@@ -4,10 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>哼唱编曲台</title>
+<meta name="description" content="哼一句，就有一首歌：哼唱自动识别成音符，一键配和弦、贝斯、鼓，22 种音色随意换，导出视频发小红书。">
+<meta name="theme-color" content="#1D2A6B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="哼唱编曲">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script src="keys.js"></script>
 <style>
-:root{--bg:#f6f4ef;--card:#fff;--ink:#1f1d1a;--muted:#6f6a62;--line:#e4dfd5;--accent:#d9622b;--accent-ink:#fff;--accent2:#2b7a78;--key:#efebe3;--chordA:#f3ede2;--chordB:#e6f0ee;--rec:#c0392b}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#16151a;--card:#201f25;--ink:#ecebe8;--muted:#9a96a0;--line:#34323a;--accent:#f08a4b;--accent-ink:#1a1209;--accent2:#5fb3ae;--key:#1b1a20;--chordA:#2a2830;--chordB:#20302f;--rec:#ff6b5b}}
-:root[data-theme="dark"]{--bg:#16151a;--card:#201f25;--ink:#ecebe8;--muted:#9a96a0;--line:#34323a;--accent:#f08a4b;--accent-ink:#1a1209;--accent2:#5fb3ae;--key:#1b1a20;--chordA:#2a2830;--chordB:#20302f;--rec:#ff6b5b}
+:root{--bg:#f4f1fa;--card:#fff;--ink:#1d2a6b;--muted:#6b6f99;--line:#e2def0;--accent:#ff6f8e;--accent-ink:#fff;--accent2:#8c7be0;--key:#eeeaf7;--chordA:#fff0c2;--chordB:#ffe3ec;--rec:#e5484d;--gold:#ffc61a}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141838;--card:#1d2350;--ink:#f3f1ff;--muted:#a6a9d6;--line:#2e3570;--accent:#ff8fa8;--accent-ink:#1d2a6b;--accent2:#a99bf0;--key:#181d45;--chordA:#3a3550;--chordB:#3a2b48;--rec:#ff6b6b}}
+:root[data-theme="dark"]{--bg:#141838;--card:#1d2350;--ink:#f3f1ff;--muted:#a6a9d6;--line:#2e3570;--accent:#ff8fa8;--accent-ink:#1d2a6b;--accent2:#a99bf0;--key:#181d45;--chordA:#3a3550;--chordB:#3a2b48;--rec:#ff6b6b}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
 header,main{max-width:1080px;margin:0 auto;padding:0 16px}
@@ -51,15 +59,46 @@ input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
 .tright{margin-left:auto;display:flex;gap:6px}
 #addTrack{border-style:dashed;color:var(--muted)}
 @media (max-width:600px){.sep{display:none}.tname{width:100%}.tright{margin-left:0}}
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.top img{width:52px;height:52px;border-radius:14px;flex:none}
+.top .grow{flex:1;min-width:180px}
+.pro{font:inherit;font-size:13px;font-weight:700;cursor:pointer;border-radius:999px;padding:7px 14px;border:2px solid var(--ink);background:var(--gold);color:#1d2a6b}
+.pro.done{background:transparent;color:var(--ink);cursor:default}
+.ghost{font:inherit;font-size:13px;cursor:pointer;border-radius:999px;padding:7px 12px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.steps{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;padding:0;list-style:none;counter-reset:s}
+.steps li{counter-increment:s;font-size:13px;background:var(--bg);border-radius:999px;padding:4px 12px 4px 6px;color:var(--ink)}
+.steps li::before{content:counter(s);display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:12px;margin-right:6px}
+#noteBar{display:none;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;padding:8px 10px;border-radius:10px;background:var(--chordA)}
+#noteBar.show{display:flex}
+#noteBar b{min-width:84px}
+.lock{font-size:11px;margin-left:4px}
+dialog{border:0;border-radius:18px;padding:22px;max-width:min(420px,calc(100vw - 32px));background:var(--card);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.3)}
+dialog::backdrop{background:rgba(20,24,56,.55)}
+dialog h3{margin:0 0 6px;font-size:20px}
+dialog ul{margin:10px 0 14px;padding-left:20px}
+dialog li{margin:4px 0}
+dialog input[type=text]{font:inherit;font-size:18px;letter-spacing:.08em;width:100%;padding:10px 12px;border-radius:10px;border:2px solid var(--line);background:var(--bg);color:var(--ink);text-transform:uppercase}
+.dlgBtns{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.err{color:var(--rec);font-size:13px;min-height:1.4em;margin-top:6px}
+.badge{display:inline-block;font-size:12px;font-weight:700;background:var(--gold);color:#1d2a6b;border-radius:6px;padding:1px 8px;margin-bottom:8px}
+#vidPreview{width:100%;border-radius:12px;margin-top:10px;display:none;background:#000}
 </style>
 </head>
 <body>
 <header>
-  <h1>哼唱编曲台</h1>
-  <p>上传或现场录下你的哼唱 → 自动识别成音符 → 自动配和弦、贝斯、鼓 → 换成钢琴、小鸟、长笛等音色</p>
+  <div class="top">
+    <img src="icon-192.png" alt="">
+    <div class="grow">
+      <h1>哼唱编曲台</h1>
+      <p>哼一句，就有一首歌</p>
+    </div>
+    <button id="installBtn" class="ghost" hidden>装到主屏幕</button>
+    <button id="proBtn" class="pro">解锁完整版</button>
+  </div>
 </header>
 <main>
   <section class="card">
+    <ol class="steps"><li>哼一段旋律</li><li>选风格、换音色、加音轨</li><li>导出视频发小红书</li></ol>
     <h2>① 旋律来源</h2>
     <div class="row">
       <label class="btn primary">选择录音文件<input type="file" id="file" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm,.aac,.flac" hidden></label>
@@ -79,7 +118,14 @@ input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
       <label class="ctl inline"><input type="checkbox" id="snapKey" checked>跑调的音自动修正到调内</label>
     </div>
     <div id="rollWrap"><canvas id="roll"></canvas></div>
-    <div id="info" class="muted">上传或录制哼唱后，这里会显示识别出的音符。点击某个音符可以删除 / 恢复它。</div>
+    <div id="noteBar">
+      <b id="noteName"></b>
+      <button class="btn" id="noteUp">升半音 ↑</button>
+      <button class="btn" id="noteDown">降半音 ↓</button>
+      <button class="btn" id="noteOff">删除</button>
+      <button class="btn" id="noteDone">完成</button>
+    </div>
+    <div id="info" class="muted">上传或录制哼唱后，这里会显示识别出的音符。点一下音符可以改音高或删除。</div>
   </section>
 
   <section class="card">
@@ -98,12 +144,45 @@ input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
     <div class="row" style="margin-top:14px">
       <button id="play" class="btn primary" disabled>▶ 播放</button>
       <button id="stop" class="btn" disabled>■ 停止</button>
+      <button id="vid" class="btn" disabled>导出小红书视频</button>
       <button id="wav" class="btn" disabled>导出 WAV 音频</button>
-      <button id="mid" class="btn" disabled>导出 MIDI（可导入 MuseScore 看谱 / 其他编曲软件）</button>
+      <button id="mid" class="btn" disabled>导出 MIDI<span class="lock">🔒</span></button>
     </div>
+    <video id="vidPreview" controls playsinline></video>
   </section>
-  <p class="muted" style="margin:0 0 32px">所有处理都在你的浏览器里完成，录音不会上传到任何地方。</p>
+  <p class="muted" style="margin:0 0 32px">所有处理都在你的手机 / 电脑里完成，录音不会上传到任何地方。作品会自动保存在这台设备上。</p>
 </main>
+
+<dialog id="proDlg">
+  <span class="badge">一次购买 · 终身使用</span>
+  <h3>解锁哼唱编曲台完整版</h3>
+  <ul>
+    <li>全部 22 种音色：古筝、二胡、吉他、电钢琴、人声合唱…</li>
+    <li>全部编曲风格：流行乐队、民谣、Lo-fi、国风、空灵</li>
+    <li>音轨随便加：和声、扫弦、鼓、导入自己的人声</li>
+    <li>导出视频不带水印 · 导出 MIDI</li>
+    <li>以后新增的音色和功能，全部免费更新</li>
+  </ul>
+  <p class="muted" id="proWhy"></p>
+  <p class="muted">还没有密钥？在小红书店铺购买「哼唱编曲台完整版」，付款后自动发送密钥。</p>
+  <form id="proForm">
+    <input type="text" id="proCode" autocomplete="off" autocapitalize="characters" placeholder="输入解锁密钥，例如 HM-XXXXXX">
+    <div class="err" id="proErr"></div>
+    <div class="dlgBtns">
+      <button type="button" class="btn" id="proCancel">先用免费版</button>
+      <button type="submit" class="btn primary">解锁</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="installDlg">
+  <h3 id="installTitle">装到主屏幕</h3>
+  <ol id="installSteps"></ol>
+  <div class="dlgBtns">
+    <button type="button" class="btn" id="installCopy" hidden>复制网址</button>
+    <button type="button" class="btn primary" id="installClose">知道了</button>
+  </div>
+</dialog>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -181,7 +260,8 @@ $('demo').onclick = async () => {
 
 async function loadBuffer(buf, name) {
   stop();
-  S.buf = buf; S.name = name;
+  S.buf = buf; S.name = name; S.frames = null;
+  idb('readwrite', st => st.put(packBuf(buf), 'audio:orig')).catch(() => {});
   renderTracks();
   setStatus('正在识别旋律…');
   const x = await toMono16k(buf);
@@ -345,6 +425,7 @@ function currentKey() {
 function rebuildNotes(resetBpm) {
   if (!S.frames) return;
   S.raw = segment(S.frames, +$('sens').value);
+  S.sel = null; $('noteBar').classList.remove('show');
   if (!S.raw.length) {
     S.song = null; draw(); enable(false);
     setStatus('没有识别到清晰的音高。试试离麦克风近一点、哼得更响更稳，或调高“识别灵敏度”。');
@@ -389,7 +470,7 @@ function arrange() {
   if ($('snapKey').checked) {
     mel.forEach((n, i) => {
       const pc = ((n.m % 12) + 12) % 12;
-      if (scale.includes(pc)) return;
+      if (scale.includes(pc) || S.raw[n.idx].edited) return; // 手动改过的音不再自动修正
       const prev = mel[i - 1], dir = prev && prev.m > n.m ? 1 : -1;
       n.m += scale.includes((pc + dir + 12) % 12) ? dir : -dir;
       n.snapped = true;
@@ -430,12 +511,13 @@ function rebuild() {
   S.song = arrange();
   enable(!!S.song);
   draw();
+  autosave();
   if (!S.song) { $('info').textContent = '所有音符都被删除了，点击灰色虚线框可以恢复。'; return; }
   const s = S.song, bars = Math.round(s.end / s.barDur);
   $('info').innerHTML = `识别到 <b>${s.mel.length}</b> 个音符 · ${keyName(s.key)} · ${s.bpm} BPM · ${bars} 小节<br>和弦：<span class="chords">${s.chords.map(c => c.name).join('  ')}</span><br>点击音符可删除 / 恢复；觉得节奏不对就改一下 BPM，或把“节奏对齐”调成“不对齐”。`;
 }
 
-function enable(on) { ['play', 'stop', 'wav', 'mid'].forEach(id => $(id).disabled = !on); }
+function enable(on) { ['play', 'stop', 'wav', 'mid', 'vid'].forEach(id => $(id).disabled = !on); }
 
 function voicing(ch) {
   return ch.pcs.map(pc => { let m = 60 + pc; if (m > 66) m -= 12; return m; }).sort((a, b) => a - b);
@@ -960,9 +1042,20 @@ function applyGains() {
   for (const tr of S.tracks) { const g = S.play.buses.get(tr.id); if (g) g.gain.setTargetAtTime(on(tr) ? tr.vol / 100 : 0, now, 0.02); }
 }
 
-function download(blob, name) {
+const UA = navigator.userAgent;
+const isIOS = /iPhone|iPad|iPod/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isAndroid = /Android/i.test(UA);
+const inApp = /MicroMessenger|XiaoHongShu|xhsdiscover|Weibo|QQ\/|DingTalk|Lark|Feishu|BytedanceWebview|aweme/i.test(UA);
+const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+// 手机上用系统分享面板保存（iPhone 可以直接“存储视频”到相册），电脑上直接下载
+async function download(blob, name) {
+  const file = new File([blob], name, { type: blob.type });
+  if ((isIOS || isAndroid) && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: name }); return; }
+    catch (e) { if (e.name === 'AbortError') return; }
+  }
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
-  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000);
 }
 
 $('wav').onclick = async () => {
@@ -987,7 +1080,7 @@ function wav(buf) {
 const PROG = { piano: 0, epiano: 4, organ: 16, box: 10, guitar: 25, harp: 46, guzheng: 107, kalimba: 108, marimba: 12, glock: 9, strings: 48, erhu: 110, flute: 73, clarinet: 71, brass: 61, whistle: 78, choir: 52, lead: 81, warmpad: 89, chip: 80, bird: 123, bass: 33 };
 const DRUM_NOTE = { kick: 36, snare: 38, hat: 42, rim: 37, shaker: 70, clap: 39 };
 $('mid').onclick = () => {
-  const s = S.song; if (!s) return;
+  const s = S.song; if (!s || !needPro('导出 MIDI 是完整版功能')) return;
   const ppq = 480, tk = x => Math.max(0, Math.round(x / s.beat * ppq));
   const u32 = x => [x >>> 24 & 255, x >>> 16 & 255, x >>> 8 & 255, x & 255];
   const vlq = n => { const b = [n & 0x7f]; while (n >>= 7) b.unshift((n & 0x7f) | 0x80); return b; };
@@ -1062,9 +1155,11 @@ function draw(pos) {
   for (const [t, m] of S.contour) { const x = (t - s.t0) * pps; if (x >= 0 && x <= W) g.fillRect(x - 1, y(m) + rowH / 2 - 1, 2, 2); }
   for (const n of vis) {
     const x = n.s * pps, w = Math.max(3, (n.e - n.s) * pps - 2), yy = y(n.m) + 1, h = Math.max(4, rowH - 2);
-    if (n.off) { g.setLineDash([3, 3]); g.strokeStyle = col.muted; g.strokeRect(x + 0.5, yy + 0.5, w, h); g.setLineDash([]); continue; }
+    const sel = n.idx === S.sel;
+    if (n.off) { g.setLineDash([3, 3]); g.strokeStyle = sel ? col.ink : col.muted; g.lineWidth = sel ? 2 : 1; g.strokeRect(x + 0.5, yy + 0.5, w, h); g.setLineDash([]); g.lineWidth = 1; continue; }
     g.fillStyle = n.snapped ? col.acc2 : col.acc;
     g.beginPath(); g.roundRect ? g.roundRect(x, yy, w, h, 3) : g.rect(x, yy, w, h); g.fill();
+    if (sel) { g.strokeStyle = col.ink; g.lineWidth = 2.5; g.stroke(); g.lineWidth = 1; }
     if (w > 26 && h >= 11) { g.fillStyle = '#fff'; g.textAlign = 'left'; g.fillText(NAMES[((n.m % 12) + 12) % 12] + (Math.floor(n.m / 12) - 1), x + 4, yy + h / 2 + 4); }
   }
   if (pos != null) { g.strokeStyle = col.ink; g.lineWidth = 1.5; g.beginPath(); g.moveTo(pos * pps, 0); g.lineTo(pos * pps, H); g.stroke(); g.lineWidth = 1; }
@@ -1074,10 +1169,42 @@ $('roll').addEventListener('click', e => {
   const s = S.song, L = S.layout; if (!s || !L) return;
   const r = e.currentTarget.getBoundingClientRect(), x = e.clientX - r.left, yv = e.clientY - r.top;
   const t = x / L.pps, m = L.hi - Math.floor((yv - L.top) / L.rowH);
-  const hit = s.all.find(n => !n.drop && t >= n.s && t <= n.e && Math.abs(n.m - m) <= 0);
-  if (!hit) return;
-  S.raw[hit.idx].off = !S.raw[hit.idx].off;
-  rebuild();
+  // 手指点不准：先找正好点中的，找不到就找同一时刻上下一格内的
+  const near = s.all.filter(n => !n.drop && t >= n.s - 0.04 && t <= n.e + 0.04);
+  const hit = near.find(n => n.m === m) || near.find(n => Math.abs(n.m - m) <= 1);
+  selectNote(hit ? hit.idx : null);
+});
+
+// ---------- 改音符 ----------
+function selectNote(idx) {
+  S.sel = idx;
+  const bar = $('noteBar');
+  bar.classList.toggle('show', idx != null);
+  if (idx != null) {
+    const r = S.raw[idx], n = S.song && S.song.all.find(a => a.idx === idx), m = n ? n.m : r.midi;
+    $('noteName').textContent = '选中 ' + NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
+    $('noteOff').textContent = r.off ? '恢复' : '删除';
+  }
+  draw(S.play ? playPos() : undefined);
+}
+function editNote(fn) {
+  if (S.sel == null) return;
+  fn(S.raw[S.sel]);
+  rebuild(); selectNote(S.sel);
+  // 改完音高顺便试听这个音
+  const n = S.song && S.song.mel.find(a => a.idx === S.sel), tr = S.tracks.find(t => t.kind === 'mel');
+  if (n && tr && !S.play) { const ctx = getCtx(); ctx.resume(); INST[tr.inst](ctx, ctx.destination, n.m + tr.oct * 12, ctx.currentTime + 0.02, 0.35, 0.6); }
+}
+$('noteUp').onclick = () => editNote(r => { r.midi++; r.edited = true; });
+$('noteDown').onclick = () => editNote(r => { r.midi--; r.edited = true; });
+$('noteOff').onclick = () => editNote(r => { r.off = !r.off; });
+$('noteDone').onclick = () => selectNote(null);
+document.addEventListener('keydown', e => {
+  if (S.sel == null || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  if (e.key === 'ArrowUp') { e.preventDefault(); $('noteUp').click(); }
+  else if (e.key === 'ArrowDown') { e.preventDefault(); $('noteDown').click(); }
+  else if (e.key === 'Delete' || e.key === 'Backspace') $('noteOff').click();
+  else if (e.key === 'Escape') selectNote(null);
 });
 
 // ---------- 控件 ----------
@@ -1099,17 +1226,54 @@ function el(tag, props = {}, kids = []) {
   for (const k of [].concat(kids)) e.append(k);
   return e;
 }
-function makeSelect(opts, val, onChange) {
+// ---------- 免费版 / 完整版 ----------
+const FREE_INST = new Set(['piano', 'box', 'flute', 'bird']);
+const FREE_PRESETS = new Set(['piano', 'none']);
+const FREE_KINDS = new Set(['mel', 'pad', 'arp', 'bass', 'orig']);
+const FREE_TRACKS = 5;
+const PRO_STORE = 'hum.unlock';
+let PRO = (() => { try { return HUM_KEY_HASHES.includes(localStorage.getItem(PRO_STORE)); } catch (e) { return false; } })();
+const lockMark = free => free || PRO ? '' : '🔒 ';
+function needPro(why) {
+  if (PRO) return true;
+  $('proWhy').textContent = why ? why + '。' : '';
+  $('proErr').textContent = ''; $('proCode').value = '';
+  $('proDlg').showModal();
+  return false;
+}
+function syncPro() {
+  $('proBtn').textContent = PRO ? '完整版 ✓ 终身' : '解锁完整版';
+  $('proBtn').classList.toggle('done', PRO);
+  $('mid').querySelector('.lock').hidden = PRO;
+  renderPresets(); renderTracks();
+}
+$('proBtn').onclick = () => { if (!PRO) needPro(''); };
+$('proCancel').onclick = () => $('proDlg').close();
+$('proForm').onsubmit = async e => {
+  e.preventDefault();
+  const code = $('proCode').value.trim().toUpperCase().replace(/[\s"'“”「」:：]+/g, '');
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('hum:' + code));
+  const h = [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  if (!HUM_KEY_HASHES.includes(h)) { $('proErr').textContent = '密钥不对，再核对一下收到的那串字母和数字。'; return; }
+  try { localStorage.setItem(PRO_STORE, h); } catch (err) {}
+  PRO = true; $('proDlg').close(); syncPro();
+  setStatus('🎉 已解锁完整版，终身可用。以后新增的音色和功能也会自动更新给你。');
+};
+
+function makeSelect(opts, val, onChange, isFree = () => true, why = '') {
   const sel = el('select');
   for (const o of opts) {
     if (Array.isArray(o)) {
       const og = el('optgroup', { label: o[0] });
-      for (const [v, t] of Object.entries(o[1])) og.append(new Option(t, v));
+      for (const [v, t] of Object.entries(o[1])) og.append(new Option(lockMark(isFree(v)) + t, v));
       sel.append(og);
-    } else sel.append(new Option(o.t, o.v));
+    } else sel.append(new Option(lockMark(isFree(o.v)) + o.t, o.v));
   }
   sel.value = val;
-  sel.onchange = () => onChange(sel.value);
+  sel.onchange = () => {
+    if (!isFree(sel.value) && !needPro(why)) { sel.value = val; return; }
+    onChange(sel.value);
+  };
   return sel;
 }
 function markCustom() { $('style').value = 'custom'; }
@@ -1122,7 +1286,7 @@ function renderTracks() {
     const name = tr.kind === 'audio' ? '🎵 ' + tr.name : tr.kind === 'orig' && !S.buf ? K.name + '（未载入）' : K.name;
     row.append(el('div', { className: 'tname', textContent: name, title: name }));
     const set = (key, rerender) => v => { tr[key] = v; markCustom(); if (rerender) renderTracks(); restart(); };
-    if (tr.inst) row.append(makeSelect(INST_GROUPS, tr.inst, set('inst')));
+    if (tr.inst) row.append(makeSelect(INST_GROUPS, tr.inst, set('inst'), v => FREE_INST.has(v), '这个音色在完整版里'));
     if (K.pats) row.append(makeSelect(Object.entries(K.pats).map(([v, t]) => ({ v, t })), tr.pat, set('pat')));
     if (!K.audio && !K.drums) row.append(makeSelect([-2, -1, 0, 1, 2].map(v => ({ v, t: v ? (v > 0 ? '高' : '低') + Math.abs(v) + ' 个八度' : '原八度' })), tr.oct, v => set('oct')(+v)));
     if (K.audio) {
@@ -1131,7 +1295,7 @@ function renderTracks() {
       row.append(el('label', { className: 'tvol', title: off.title }, ['偏移(秒)', off]));
     }
     const vol = el('input', { type: 'range', min: 0, max: 150, value: tr.vol });
-    vol.oninput = () => { tr.vol = +vol.value; applyGains(); };
+    vol.oninput = () => { tr.vol = +vol.value; applyGains(); autosave(); };
     row.append(el('label', { className: 'tvol' }, ['音量', vol]));
     const toggle = (key, txt, cls, title) => {
       const b = el('button', { className: 'tbtn ' + cls + (tr[key] ? ' on' : ''), textContent: txt, title });
@@ -1144,19 +1308,23 @@ function renderTracks() {
     box.append(row);
   }
   renderAddMenu();
+  autosave();
 }
 function renderAddMenu() {
-  const a = $('addTrack'); a.innerHTML = '';
-  a.append(new Option('＋ 添加音轨…', ''));
-  for (const k of ['mel', 'harm', 'pad', 'arp', 'strum', 'bass', 'drums']) a.append(new Option(KINDS[k].name + (k === 'mel' ? '（再叠一种音色）' : ''), k));
+  const a = $('addTrack'), full = !PRO && S.tracks.length >= FREE_TRACKS;
+  a.innerHTML = '';
+  a.append(new Option('＋ 添加音轨…' + (full ? '（免费版最多 ' + FREE_TRACKS + ' 条 🔒）' : ''), ''));
+  for (const k of ['mel', 'harm', 'pad', 'arp', 'strum', 'bass', 'drums']) a.append(new Option(lockMark(FREE_KINDS.has(k)) + KINDS[k].name + (k === 'mel' ? '（再叠一种音色）' : ''), k));
   const o = new Option('原声哼唱' + (S.tracks.some(t => t.kind === 'orig') ? '（已在列表里）' : ''), 'orig');
   o.disabled = S.tracks.some(t => t.kind === 'orig');
-  a.append(o, new Option('导入一段音频（人声 / 伴奏）…', 'file'));
+  a.append(o, new Option(lockMark(false) + '导入一段音频（人声 / 伴奏）…', 'file'));
   a.value = '';
 }
 $('addTrack').onchange = () => {
   const k = $('addTrack').value; $('addTrack').value = '';
   if (!k) return;
+  if (!FREE_KINDS.has(k) && !needPro('「' + (k === 'file' ? '导入音频' : KINDS[k].name) + '」音轨在完整版里')) return;
+  if (S.tracks.length >= FREE_TRACKS && !needPro('免费版最多 ' + FREE_TRACKS + ' 条音轨，完整版不限')) return;
   if (k === 'file') { $('audioFile').click(); return; }
   S.tracks.push(mkTrack(k, k === 'mel' ? { inst: 'flute', vol: 70 } : {}));
   markCustom(); renderTracks(); restart();
@@ -1166,21 +1334,223 @@ $('audioFile').onchange = async e => {
   if (!f) return;
   try {
     const buf = await getCtx().decodeAudioData(await f.arrayBuffer());
-    S.tracks.push(mkTrack('audio', { buf, name: f.name.replace(/\.[^.]+$/, '') }));
+    const tr = mkTrack('audio', { buf, name: f.name.replace(/\.[^.]+$/, '') });
+    S.tracks.push(tr);
+    idb('readwrite', st => st.put(packBuf(buf), 'audio:' + tr.id)).catch(() => {});
     renderTracks(); restart();
   } catch (err) { setStatus('无法读取这个音频文件（' + err.message + '）。'); }
 };
-(() => {
-  const st = $('style');
-  for (const [k, p] of Object.entries(PRESETS)) st.add(new Option(p.name, k));
+function renderPresets() {
+  const st = $('style'), cur = st.value || 'piano';
+  st.innerHTML = '';
+  for (const [k, p] of Object.entries(PRESETS)) st.add(new Option(lockMark(FREE_PRESETS.has(k)) + p.name, k));
   const c = new Option('自定义', 'custom'); c.hidden = true; st.add(c);
-  st.value = 'piano';
-  st.onchange = () => { if (st.value === 'custom') return; applyPreset(st.value); renderTracks(); restart(); };
-})();
-$('rev').oninput = () => { if (S.play) S.play.rg.gain.setTargetAtTime($('rev').value / 100, getCtx().currentTime, 0.05); };
-renderTracks();
+  st.value = cur; st.dataset.prev = cur;
+}
+$('style').onchange = () => {
+  const st = $('style');
+  if (st.value === 'custom') return;
+  if (!FREE_PRESETS.has(st.value) && !needPro('「' + PRESETS[st.value].name + '」风格在完整版里')) { st.value = st.dataset.prev; return; }
+  st.dataset.prev = st.value;
+  applyPreset(st.value); renderTracks(); restart();
+};
+$('rev').oninput = () => { if (S.play) S.play.rg.gain.setTargetAtTime($('rev').value / 100, getCtx().currentTime, 0.05); autosave(); };
+
+// ---------- 自动保存（存在这台设备的 IndexedDB 里，关掉页面再打开还在） ----------
+function idb(mode, fn) {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('hum-studio', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('p');
+    r.onerror = () => rej(r.error);
+    r.onsuccess = () => {
+      const tx = r.result.transaction('p', mode), q = fn(tx.objectStore('p'));
+      tx.oncomplete = () => res(q && q.result); tx.onerror = () => rej(tx.error);
+    };
+  });
+}
+const packBuf = b => ({ sr: b.sampleRate, ch: Array.from({ length: b.numberOfChannels }, (_, i) => b.getChannelData(i)) });
+function unpackBuf(p) {
+  const b = new AudioBuffer({ length: p.ch[0].length, numberOfChannels: p.ch.length, sampleRate: p.sr });
+  p.ch.forEach((d, i) => b.copyToChannel(d, i));
+  return b;
+}
+const SETTINGS = ['bpm', 'grid', 'key', 'sens', 'chordRate', 'rev', 'style'];
+let saveTimer = null, restoring = false;
+function autosave() {
+  // 作品改了，之前录好的视频就过时了
+  if (S.video && !vrec) { S.video = null; $('vid').textContent = '导出小红书视频'; }
+  if (!restoring) { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 800); } }
+async function saveNow() {
+  if (!S.buf || !S.frames) return;
+  const settings = { snapKey: $('snapKey').checked };
+  for (const id of SETTINGS) settings[id] = $(id).value;
+  const tracks = S.tracks.map(t => { const c = { ...t }; delete c.buf; return c; });
+  const keep = new Set(['audio:orig', ...tracks.filter(t => t.kind === 'audio').map(t => 'audio:' + t.id)]);
+  try {
+    await idb('readwrite', st => {
+      st.put({ name: S.name, frames: S.frames, raw: S.raw, contour: S.contour, settings, tracks }, 'last');
+      const ks = st.getAllKeys();
+      ks.onsuccess = () => ks.result.forEach(k => { if (String(k).startsWith('audio:') && !keep.has(k)) st.delete(k); });
+    });
+  } catch (e) {}
+}
+async function restore() {
+  try {
+    const p = await idb('readonly', st => st.get('last')), a = p && await idb('readonly', st => st.get('audio:orig'));
+    if (!p || !a) return;
+    restoring = true;
+    S.buf = unpackBuf(a); S.name = p.name; S.frames = p.frames; S.raw = p.raw; S.contour = p.contour;
+    for (const id of SETTINGS) $(id).value = p.settings[id];
+    $('snapKey').checked = p.settings.snapKey;
+    $('style').dataset.prev = $('style').value;
+    S.tracks = [];
+    for (const t of p.tracks) {
+      if (t.kind === 'audio') { const b = await idb('readonly', st => st.get('audio:' + t.id)); if (!b) continue; t.buf = unpackBuf(b); }
+      S.tracks.push(t);
+    }
+    nextId = Math.max(nextId, ...S.tracks.map(t => t.id + 1));
+    renderTracks(); rebuild();
+    setStatus('已恢复上次的作品「' + S.name + '」。想做新的，就上传或录一段新的哼唱。');
+  } catch (e) {} finally { restoring = false; }
+}
+
+// ---------- 导出小红书视频（3:4 竖版，边放边录） ----------
+const VW = 1080, VH = 1440, brandImg = new Image();
+brandImg.src = 'icon-192.png';
+let vrec = null;
+function drawVideoFrame(g, pos, an, len) {
+  const s = S.song, font = (w, px) => `${w} ${px}px system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif`;
+  const bg = g.createLinearGradient(0, 0, 0, VH); bg.addColorStop(0, '#1D2A6B'); bg.addColorStop(1, '#3B2F80');
+  g.fillStyle = bg; g.fillRect(0, 0, VW, VH);
+  const glow = g.createRadialGradient(VW / 2, 720, 40, VW / 2, 720, 700); glow.addColorStop(0, 'rgba(140,123,224,.45)'); glow.addColorStop(1, 'rgba(140,123,224,0)');
+  g.fillStyle = glow; g.fillRect(0, 0, VW, VH);
+  // 标题与当前和弦
+  const ch = s.chords.find(c => pos >= c.t && pos < c.t + c.d) || (pos < 0 ? s.chords[0] : s.chords[s.chords.length - 1]);
+  g.textAlign = 'left'; g.fillStyle = '#fff'; g.font = font(800, 68); g.fillText(S.name.slice(0, 14), 70, 150);
+  g.fillStyle = '#C9C3F2'; g.font = font(500, 34); g.fillText(keyName(s.key) + ' · ' + s.bpm + ' BPM', 70, 210);
+  g.textAlign = 'right'; g.fillStyle = '#FFC61A'; g.font = font(800, 96); g.fillText(ch.name, VW - 70, 190);
+  // 卷帘：现在的位置在左边 35% 处，往右能看到接下来 4 秒
+  const X0 = 60, X1 = VW - 60, Y0 = 290, Y1 = 1080, span = 6, px = (X1 - X0) / span, t0 = pos - span * 0.35;
+  const ms = s.mel.map(n => n.m), lo = Math.min(...ms) - 2, hi = Math.max(...ms) + 2, rh = (Y1 - Y0) / (hi - lo + 1);
+  g.save(); g.beginPath(); g.roundRect ? g.roundRect(X0, Y0, X1 - X0, Y1 - Y0, 28) : g.rect(X0, Y0, X1 - X0, Y1 - Y0); g.clip();
+  g.fillStyle = 'rgba(255,255,255,.06)'; g.fillRect(X0, Y0, X1 - X0, Y1 - Y0);
+  for (let j = Math.ceil(t0 / s.beat); j * s.beat < t0 + span; j++) {
+    const x = X0 + (j * s.beat - t0) * px;
+    g.fillStyle = j % 4 === 0 ? 'rgba(255,255,255,.18)' : 'rgba(255,255,255,.06)'; g.fillRect(x, Y0, 2, Y1 - Y0);
+  }
+  for (const n of s.mel) {
+    if (n.e < t0 || n.s > t0 + span) continue;
+    const x = X0 + (n.s - t0) * px, w = Math.max(10, (n.e - n.s) * px - 6), y = Y0 + (hi - n.m) * rh + 3, h = Math.max(12, rh - 6);
+    const now = pos >= n.s && pos < n.e;
+    g.fillStyle = now ? '#FFC61A' : n.e < pos ? 'rgba(255,111,142,.45)' : '#FF6F8E';
+    if (now) { g.shadowColor = '#FFC61A'; g.shadowBlur = 40; }
+    g.beginPath(); g.roundRect ? g.roundRect(x, y, w, h, Math.min(12, h / 2)) : g.rect(x, y, w, h); g.fill();
+    g.shadowBlur = 0;
+  }
+  const phx = X0 + (pos - t0) * px;
+  g.fillStyle = '#fff'; g.fillRect(phx - 2, Y0, 4, Y1 - Y0);
+  g.restore();
+  // 音量跳动条
+  const bins = new Uint8Array(an.frequencyBinCount); an.getByteFrequencyData(bins);
+  const nb = 28, bw = (X1 - X0) / nb;
+  for (let i = 0; i < nb; i++) {
+    const v = bins[Math.floor(i * bins.length * 0.7 / nb)] / 255, h = 12 + v * 150;
+    g.fillStyle = i % 2 ? '#FF8FA8' : '#FFC61A';
+    g.beginPath(); g.roundRect ? g.roundRect(X0 + i * bw + 6, 1270 - h, bw - 12, h, 8) : g.rect(X0 + i * bw + 6, 1270 - h, bw - 12, h); g.fill();
+  }
+  // 底部：免费版带角标，完整版干净无水印
+  if (!PRO) {
+    if (brandImg.complete) g.drawImage(brandImg, 70, 1310, 72, 72);
+    g.textAlign = 'left'; g.fillStyle = '#fff'; g.font = font(700, 34); g.fillText('哼唱编曲台', 160, 1345);
+    g.fillStyle = '#C9C3F2'; g.font = font(500, 26); g.fillText('哼一句，就有一首歌 · 免费版制作', 160, 1382);
+  }
+  g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(0, VH - 10, VW, 10);
+  g.fillStyle = '#FFC61A'; g.fillRect(0, VH - 10, VW * clamp(pos / len, 0, 1), 10);
+}
+async function exportVideo() {
+  const mime = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm']
+    .find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t));
+  if (!mime || !HTMLCanvasElement.prototype.captureStream) { setStatus('这个浏览器录不了视频，换新版 Chrome / Edge / Safari 试试。'); return; }
+  stop();
+  const ctx = getCtx(); await ctx.resume();
+  const cv = el('canvas', { width: VW, height: VH }), g = cv.getContext('2d');
+  const master = ctx.createGain(), dest = ctx.createMediaStreamDestination(), an = ctx.createAnalyser();
+  an.fftSize = 256; master.connect(dest); master.connect(ctx.destination); master.connect(an);
+  const stream = new MediaStream([...cv.captureStream(30).getVideoTracks(), ...dest.stream.getAudioTracks()]);
+  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6e6 }), chunks = [];
+  rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+  const len = songLength(S.song) + 1.2, lead = 0.6, at = ctx.currentTime + lead;
+  vrec = { cancelled: false };
+  drawVideoFrame(g, -lead, an, len);
+  rec.start(250);
+  renderSong(ctx, master, at, S.song, 0, true);
+  $('vid').textContent = '录制中…点这里取消';
+  setStatus('正在生成视频，会边播放边录制，请停留在这个页面。');
+  await new Promise(res => {
+    const tick = () => {
+      const pos = ctx.currentTime - at;
+      drawVideoFrame(g, pos, an, len);
+      $('vid').textContent = `录制中 ${Math.max(0, Math.floor(pos))} / ${Math.ceil(len)} 秒 · 点这里取消`;
+      // 用定时器而不是 requestAnimationFrame：页面被挡住时动画帧会停，录制就卡住了
+      if (vrec.cancelled || pos > len) res(); else setTimeout(tick, 1000 / 30);
+    };
+    tick();
+  });
+  const cancelled = vrec.cancelled;
+  await new Promise(r => { rec.onstop = r; rec.stop(); });
+  master.gain.setTargetAtTime(0, ctx.currentTime, 0.02); setTimeout(() => master.disconnect(), 250);
+  vrec = null;
+  if (cancelled) { $('vid').textContent = '导出小红书视频'; setStatus('已取消。'); return; }
+  const ext = mime.startsWith('video/mp4') ? 'mp4' : 'webm', blob = new Blob(chunks, { type: 'video/' + ext });
+  S.video = { blob, name: S.name + '-编曲.' + ext };
+  const v = $('vidPreview'); if (v.src) URL.revokeObjectURL(v.src);
+  v.src = URL.createObjectURL(blob); v.style.display = 'block';
+  $('vid').textContent = '保存视频 ↓';
+  setStatus(ext === 'mp4' ? '视频做好了，点「保存视频」存到手机相册 / 电脑，就能发小红书。'
+    : '视频做好了（webm 格式）。小红书更认 mp4，建议用新版 Chrome / Edge 或 iPhone Safari 导出。');
+}
+$('vid').onclick = () => {
+  if (vrec) { vrec.cancelled = true; return; }
+  if (S.video) { download(S.video.blob, S.video.name); return; }
+  if (S.song) exportVideo();
+};
+
+// ---------- 装到主屏幕 ----------
+let installEvt = null;
+const syncInstall = () => { $('installBtn').hidden = standalone || !(installEvt || isIOS || isAndroid || inApp); };
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; syncInstall(); });
+window.addEventListener('appinstalled', () => { installEvt = null; $('installBtn').hidden = true; });
+$('installBtn').onclick = async () => {
+  if (installEvt) { installEvt.prompt(); try { await installEvt.userChoice; } catch (e) {} installEvt = null; syncInstall(); return; }
+  const steps = $('installSteps'); $('installCopy').hidden = true;
+  if (inApp) {
+    $('installTitle').textContent = '先换到浏览器里打开';
+    steps.innerHTML = `<li>现在是在 App 里打开的，没法装到主屏幕。</li><li>点右上角「···」，选「在浏览器中打开」${isIOS ? '（iPhone 用 Safari）' : ''}。没有这个选项就点下面「复制网址」，到浏览器里粘贴打开。</li><li>打开后再点「装到主屏幕」。</li>`;
+    $('installCopy').hidden = false;
+  } else if (isIOS) {
+    $('installTitle').textContent = '装到 iPhone 主屏幕';
+    steps.innerHTML = '<li>用 Safari 打开本页，点底部的分享按钮（方框加向上箭头）。</li><li>往下滑，点「添加到主屏幕」。</li><li>点右上角「添加」。以后从桌面上的小Y图标打开，全屏使用，没网也能用。</li>';
+  } else {
+    $('installTitle').textContent = '装到主屏幕';
+    steps.innerHTML = isAndroid
+      ? '<li>点浏览器右上角的菜单（三个点）。</li><li>选「添加到主屏幕」或「安装应用」。</li><li>以后从桌面上的小Y图标打开，没网也能用。</li>'
+      : '<li>用 Chrome 或 Edge 打开本页。</li><li>点地址栏右边的安装图标，或菜单里的「安装哼唱编曲台」。</li><li>装好后像一个独立的小程序，可以固定到任务栏。</li>';
+  }
+  $('installDlg').showModal();
+};
+$('installClose').onclick = () => $('installDlg').close();
+$('installCopy').onclick = async () => {
+  const url = location.origin + location.pathname;
+  try { await navigator.clipboard.writeText(url); $('installCopy').textContent = '已复制 ✓'; } catch (e) { prompt('长按复制这个网址：', url); }
+};
+syncInstall();
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+
+renderPresets();
+syncPro();
 window.addEventListener('resize', () => draw());
 draw();
+restore();
 </script>
 </body>
 </html>

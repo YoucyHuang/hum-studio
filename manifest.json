@@ -1,0 +1,17 @@
+{
+  "name": "哼唱编曲台 · Y世界",
+  "short_name": "哼唱编曲",
+  "description": "哼一句，就有一首歌：哼唱自动识别成音符，一键配和弦、贝斯、鼓，22 种音色随意换，导出视频发小红书。",
+  "id": "./",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1D2A6B",
+  "theme_color": "#1D2A6B",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

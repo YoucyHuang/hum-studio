@@ -1,26 +1,34 @@
-# 哼唱编曲台
+# 哼唱编曲台 · Y世界
 
-上传或现场录下哼唱 → 自动识别成音符 → 自动配和弦、贝斯、鼓 → 换成钢琴、古筝、二胡、吉他等 22 种音色，可导出 WAV / MIDI。
+哼一句，就有一首歌：上传或现场录下哼唱 → 自动识别成音符 → 一键配和弦、贝斯、鼓 → 22 种音色随意换 → 导出小红书竖版视频 / WAV / MIDI。
 
-多音轨：每条音轨单独选音色、节奏型、八度、音量，可静音（M）/ 独奏（S）/ 删除；可以自己添加主旋律（叠音色）、三度和声、和弦铺底、分解和弦、扫弦、贝斯、鼓，也能把原声哼唱或另一段音频（人声 / 伴奏）作为音轨混进去。
+**在线使用：** https://youcyhuang.github.io/hum-studio/ （可以「装到主屏幕」，像 App 一样从桌面图标打开，没网也能用）
 
-**在线使用：** 开通 GitHub Pages 后为 https://youcyhuang.github.io/hum-studio/ （需先把仓库设为 Public，再在 Settings → Pages 选 main 分支）
+## 免费版 / 完整版
+
+| | 免费版 | 完整版（一次购买，终身使用） |
+|---|---|---|
+| 音色 | 钢琴、八音盒、长笛、小鸟 | 全部 22 种 |
+| 编曲风格 | 抒情钢琴、不要伴奏 | 全部 7 种 |
+| 音轨 | 最多 5 条；主旋律、铺底、分解和弦、贝斯、原声 | 不限；另有和声、扫弦、鼓、导入音频 |
+| 导出 | 视频（角落带「哼唱编曲台」标识）、WAV | 视频无标识、WAV、MIDI |
+
+- 解锁密钥：`keys.js` 里只存 `SHA-256("hum:密钥")`，明文密钥和发货话术在桌面 `小红书\哼唱编曲台_密钥\`，**不要提交到仓库**。
+- 增加密钥：生成新的 `HM-XXXXXX`，把摘要追加进 `keys.js` 的数组即可。
+- 解锁记在这台设备的浏览器里；换手机或清了浏览器数据，重新输入同一个密钥。
 
 ## 文件说明
 
-整个工具只有一个文件：`index.html`（纯 HTML + JavaScript，无任何依赖，所有处理都在浏览器本地完成）。
+- `index.html`：整个工具（纯 HTML + JavaScript，无依赖，所有处理都在本机完成）
+- `keys.js`：密钥摘要
+- `manifest.json`、`service-worker.js`：装到主屏幕 + 离线可用（改了 `index.html` 发布新版时，把 `service-worker.js` 里的 `CACHE` 版本号加 1）
+- `icon.svg`：图标源文件（小Y闭眼唱歌）；`icon-*.png`、`apple-touch-icon.png`、`favicon-32.png` 由它导出
 
-## 怎么修改（给 AI / 自己看）
+## 代码结构（都在 `<script>` 里，按注释分段）
 
-- 下载 `index.html`，交给任意 AI 助手说明想改什么，改完替换回来即可。
-- 也可以在 GitHub 网页上点开 `index.html` → 右上角铅笔图标直接编辑 → Commit，约 1 分钟后网址自动更新。
-- 本地测试：直接用 Chrome / Edge 打开 `index.html`。
-
-代码结构（都在 `<script>` 里，按注释分段）：
-- `detectPitch`：YIN 音高识别
-- `segment`：把音高曲线切成音符（含跑调校正、同音反复切分）
-- `estimateBpm` / `detectKey`：速度与调性估计
-- `arrange`：配和弦
-- `KINDS` / `PRESETS`：音轨类型与一键编曲风格；`trackEvents` / `drumEvents`：每条音轨生成音符
-- `INST` / `DRUM`：各种音色的合成（新增音色就在这里加一个函数，并在 `INST_GROUPS` 里加名字、在 `PROG` 里加 MIDI 音色号）；吉他 / 竖琴 / 古筝用 `pluck`（Karplus-Strong 拨弦）
-- `renderSong`、导出 WAV / MIDI（每条音轨一个 MIDI 轨）、`draw`（钢琴卷帘）、`renderTracks`（音轨面板）
+- `detectPitch`：YIN 音高识别；`segment`：切成音符；`estimateBpm` / `detectKey`：速度与调性
+- `arrange`：配和弦；`KINDS` / `PRESETS`：音轨类型与编曲风格；`trackEvents` / `drumEvents`：每条音轨生成音符
+- `INST` / `DRUM`：音色合成（新增音色：加函数，并在 `INST_GROUPS` 里加名字、在 `PROG` 里加 MIDI 音色号）；吉他 / 竖琴 / 古筝用 `pluck`
+- `renderSong`、导出 WAV / MIDI、`draw`（钢琴卷帘）、改音符（`selectNote` / `editNote`）
+- 免费版 / 完整版：`FREE_*`、`needPro`；音轨面板：`renderTracks`
+- 自动保存：`saveNow` / `restore`（IndexedDB）；视频：`drawVideoFrame` / `exportVideo`；装到主屏幕：`installBtn`
