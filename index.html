@@ -160,6 +160,17 @@ dialog input[type=text]{font:20px "VT323",monospace;letter-spacing:.12em;width:1
 .clip{display:inline-flex;align-items:center;gap:8px;font-size:13px;background:var(--key);border:2px solid var(--edge);border-radius:999px;padding:3px 4px 3px 4px}
 .clip b{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--blue);color:#fff;font:16px/1 "VT323",monospace}
 .clip .tbtn{width:24px;height:24px;font-size:14px;border-radius:50%}
+.mixBar{display:grid;gap:10px;margin:16px 0 4px;padding:14px 16px;border:2.5px solid var(--edge);border-radius:18px;background:var(--key)}
+.blend{display:flex;align-items:center;gap:12px;font-weight:700;font-size:15px}
+.blend span{min-width:44px;text-align:center}
+.blend input{flex:1;width:auto;min-width:0}
+#transport{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--card);border-top:3px solid var(--edge);box-shadow:0 -5px 0 rgba(29,42,107,.12);padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
+#transport[hidden]{display:none}
+.tin{max-width:1048px;margin:0 auto;display:flex;align-items:center;gap:10px}
+#transport .btn{width:46px;height:46px;padding:0;justify-content:center;font-size:18px;flex:none}
+#seek{flex:1;width:auto;min-width:0;accent-color:var(--accent);height:28px}
+#tNow,#tLen{font-size:22px;min-width:44px;text-align:center}
+body.hasT{padding-bottom:96px}
 #vidPreview{width:100%;max-width:420px;border-radius:16px;border:2.5px solid var(--edge);margin-top:12px;display:none;background:#000}
 </style>
 </head>
@@ -229,6 +240,11 @@ dialog input[type=text]{font:20px "VT323",monospace;letter-spacing:.12em;width:1
       <label class="ctl">和弦变化<select id="chordRate"><option value="1" selected>每小节一个</option><option value="2">每两拍一个</option></select></label>
       <label class="ctl">混响<input type="range" id="rev" min="0" max="80" value="28"></label>
     </div>
+    <div class="mixBar">
+      <label class="blend"><span>原声</span><input type="range" id="blend" min="0" max="100" value="100"><span>乐器</span></label>
+      <label class="blend"><span>伴奏</span><input type="range" id="accAmt" min="0" max="150" value="100"><span id="accVal">100%</span></label>
+      <div class="muted">上面一条：左边是你自己的声音，右边是换成乐器后的旋律，中间就是两个混在一起。下面一条调伴奏（和声、铺底、贝斯、鼓…）整体多大声。松手后会自动回到这一段开头重放，方便对比前后。</div>
+    </div>
     <div id="tracks"></div>
     <div class="row" style="margin-top:10px">
       <select id="addTrack" class="btn"></select>
@@ -236,8 +252,6 @@ dialog input[type=text]{font:20px "VT323",monospace;letter-spacing:.12em;width:1
       <span class="muted">5 个音轨任你选，解锁进阶，最高可添加 15 个。每条音轨都能单独换音色、调音量；M = 静音，S = 只听这一轨。</span>
     </div>
     <div class="row" style="margin-top:14px">
-      <button id="play" class="btn primary" disabled>▶ 播放</button>
-      <button id="stop" class="btn" disabled>■ 停止</button>
       <button id="vid" class="btn" disabled>导出小红书视频</button>
       <button id="coverBtn" class="btn" disabled>导出封面图</button>
       <button id="wav" class="btn" disabled>导出 WAV 音频</button>
@@ -247,6 +261,16 @@ dialog input[type=text]{font:20px "VT323",monospace;letter-spacing:.12em;width:1
   </section>
   <p class="muted" style="margin:0 0 32px">所有处理都在你的手机 / 电脑里完成，录音不会上传到任何地方。作品会自动保存在这台设备上。</p>
 </main>
+
+<div id="transport" hidden>
+  <div class="tin">
+    <button id="play" class="btn primary" disabled aria-label="播放">▶</button>
+    <button id="stop" class="btn" disabled aria-label="回到开头">■</button>
+    <span id="tNow" class="px">0:00</span>
+    <input type="range" id="seek" min="0" max="1000" value="0" aria-label="播放进度">
+    <span id="tLen" class="px">0:00</span>
+  </div>
+</div>
 
 <dialog id="proDlg">
   <span class="badge">一次购买 · 终身使用</span>
@@ -527,7 +551,7 @@ $('demo').onclick = async () => {
 
 async function loadBuffer(buf, name, clips) {
   stop();
-  S.buf = buf; S.name = name; S.frames = null; S.clips = clips || [{ name, dur: buf.duration }];
+  S.buf = buf; S.name = name; S.frames = null; S.clips = clips || [{ name, dur: buf.duration }]; S.cursor = 0;
   renderClips();
   idb('readwrite', st => st.put(packBuf(buf), 'audio:orig')).catch(() => {});
   renderTracks();
@@ -830,7 +854,7 @@ function rebuild() {
   $('info').innerHTML = `识别到 <b>${s.mel.length}</b> 个音符 · ${keyName(s.key)} · ${s.bpm} BPM · ${bars} 小节<br>和弦：<span class="chords">${s.chords.map(c => c.name).join('  ')}</span><br>拖动音符：上下改音高、左右挪位置、拖右边缘改长短（手机上先点一下选中再拖）；觉得节奏不对就改一下 BPM，或把“节奏对齐”调成“不对齐”。`;
 }
 
-function enable(on) { ['play', 'stop', 'wav', 'mid', 'vid', 'coverBtn'].forEach(id => $(id).disabled = !on); }
+function enable(on) { ['play', 'stop', 'wav', 'mid', 'vid', 'coverBtn'].forEach(id => $(id).disabled = !on); syncTransport(S.cursor || 0); }
 
 function voicing(ch) {
   return ch.pcs.map(pc => { let m = 60 + pc; if (m > 66) m -= 12; return m; }).sort((a, b) => a - b);
@@ -875,7 +899,7 @@ function applyPreset(key) {
   S.tracks = S.tracks.filter(t => !ACC.has(t.kind)).concat(P.tracks.map(([k, o]) => mkTrack(k, o)));
   $('rev').value = P.rev;
 }
-S.tracks = [mkTrack('orig', { mute: true, vol: 90 }), mkTrack('mel')];
+S.tracks = [mkTrack('orig', { vol: 90 }), mkTrack('mel')];
 applyPreset('piano');
 
 const audibleFn = () => { const solo = S.tracks.some(t => t.solo); return t => !t.mute && (!solo || t.solo); };
@@ -1413,8 +1437,8 @@ function renderSong(ctx, dest, at, s, from = 0, onlyAudible = false) {
   mix.connect(comp); mix.connect(conv); conv.connect(rg); rg.connect(comp); comp.connect(outG); outG.connect(lim); lim.connect(dest);
   const buses = new Map(), on = audibleFn();
   for (const tr of S.tracks) {
-    if (onlyAudible && !on(tr)) continue;
-    const g = ctx.createGain(); g.gain.value = on(tr) ? tr.vol / 100 : 0; buses.set(tr.id, g);
+    if (onlyAudible && !trackGain(tr, on)) continue;
+    const g = ctx.createGain(); g.gain.value = trackGain(tr, on); buses.set(tr.id, g);
     if (KINDS[tr.kind].audio) {
       const sp = audioSpan(tr, s); if (!sp) continue;
       const songT = Math.max(from, sp.start), off = sp.base + songT - sp.start;
@@ -1437,8 +1461,27 @@ function renderSong(ctx, dest, at, s, from = 0, onlyAudible = false) {
 }
 
 // ---------- 播放 / 导出 ----------
-const playPos = () => S.play ? getCtx().currentTime - S.play.at + S.play.from : 0;
-function play(from = 0) {
+const playPos = () => S.play ? getCtx().currentTime - S.play.at + S.play.from : S.cursor || 0;
+// 每条音轨实际多大声：原声 / 主旋律跟着「原声 ⟷ 乐器」那条轴交叉淡入淡出（等功率，中间不会变小声），
+// 伴奏类跟着「伴奏」那条轴，导入的音频只看它自己的音量
+function trackGain(tr, on = audibleFn()) {
+  if (!on(tr)) return 0;
+  const v = tr.vol / 100, b = +$('blend').value / 100;
+  if (tr.kind === 'orig') return v * Math.cos(b * Math.PI / 2);
+  if (tr.kind === 'mel') return v * Math.sin(b * Math.PI / 2);
+  if (tr.kind === 'audio') return v;
+  return v * $('accAmt').value / 100;
+}
+const fmtT = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
+function syncTransport(pos) {
+  const len = S.song ? songLength(S.song) : 0;
+  $('transport').hidden = !S.song; document.body.classList.toggle('hasT', !!S.song);
+  if (!S.song) return;
+  if (!seeking) $('seek').value = len ? Math.round(clamp(pos, 0, len) / len * 1000) : 0;
+  $('tNow').textContent = fmtT(clamp(pos, 0, len)); $('tLen').textContent = fmtT(len);
+  $('play').textContent = S.play ? '❚❚' : '▶'; $('play').setAttribute('aria-label', S.play ? '暂停' : '播放');
+}
+function play(from = S.cursor || 0) {
   if (!S.song) return;
   stop();
   const ctx = getCtx(); ctx.resume();
@@ -1448,29 +1491,53 @@ function play(from = 0) {
   const tick = () => {
     if (!S.play || S.play.master !== master) return;
     const pos = ctx.currentTime - at + from;
-    if (pos > len + 2.5) { stop(); return; }
-    draw(pos);
+    if (pos > len + 2.5) { stop(); S.cursor = 0; syncTransport(0); draw(); return; }
+    draw(pos); syncTransport(pos);
     const wrap = $('rollWrap'), x = pos * S.layout.pps;
     if (x > wrap.scrollLeft + wrap.clientWidth * 0.8 || x < wrap.scrollLeft) wrap.scrollLeft = x - wrap.clientWidth * 0.2;
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
+  syncTransport(from);
 }
 function stop() {
   if (!S.play) return;
   const m = S.play.master; S.play = null;
   m.gain.setTargetAtTime(0, getCtx().currentTime, 0.02);
   setTimeout(() => m.disconnect(), 250);
-  draw();
+  draw(); syncTransport(S.cursor || 0);
 }
-$('play').onclick = () => play();
-$('stop').onclick = stop;
-// 改了设置：正在播放的话从当前位置接着放
-const restart = () => { if (S.play) play(playPos()); };
+// 播放 / 暂停：暂停时记住位置，下次从这里接着放；■ 回到开头
+$('play').onclick = () => { if (S.play) { S.cursor = playPos(); stop(); } else play(); };
+$('stop').onclick = () => { stop(); S.cursor = 0; draw(); syncTransport(0); };
+// 拖进度条：拖的时候只移动播放线，松手后从那里开始放
+let seeking = false;
+$('seek').addEventListener('input', () => {
+  seeking = true;
+  const t = $('seek').value / 1000 * songLength(S.song);
+  $('tNow').textContent = fmtT(t); draw(t);
+});
+$('seek').addEventListener('change', () => {
+  seeking = false;
+  S.cursor = $('seek').value / 1000 * songLength(S.song);
+  if (S.play) play(S.cursor); else { draw(); syncTransport(S.cursor); }
+});
+document.addEventListener('keydown', e => {
+  if (e.code !== 'Space' || !S.song || /INPUT|SELECT|TEXTAREA|BUTTON/.test(document.activeElement.tagName)) return;
+  e.preventDefault(); $('play').click();
+});
+// 改了设置 → 回到「这一段」开头重放，方便对比前后。一段 = 两小节；刚进这一段不到 0.8 秒的话再往前退一段
+function phraseStart(pos) {
+  const ph = 2 * S.song.barDur;
+  let st = Math.floor(pos / ph) * ph;
+  if (pos - st < 0.8 && st >= ph) st -= ph;
+  return Math.max(0, st);
+}
+const restart = () => { if (S.song) play(phraseStart(playPos())); };
 function applyGains() {
   if (!S.play) return;
   const on = audibleFn(), now = getCtx().currentTime;
-  for (const tr of S.tracks) { const g = S.play.buses.get(tr.id); if (g) g.gain.setTargetAtTime(on(tr) ? tr.vol / 100 : 0, now, 0.02); }
+  for (const tr of S.tracks) { const g = S.play.buses.get(tr.id); if (g) g.gain.setTargetAtTime(trackGain(tr, on), now, 0.03); }
 }
 
 const UA = navigator.userAgent;
@@ -1552,6 +1619,7 @@ $('mid').onclick = () => {
 // ---------- 钢琴卷帘 ----------
 function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 function draw(pos) {
+  if (pos === undefined && !S.play && S.cursor) pos = S.cursor;
   const c = $('roll'), wrap = $('rollWrap'), dpr = window.devicePixelRatio || 1, H = 280, s = S.song;
   const W0 = wrap.clientWidth;
   const lk = S.dragLock, pps = lk ? lk.pps : s ? Math.max((W0 - 2) / (s.end + 0.5), 70) : 1;
@@ -1610,6 +1678,12 @@ function hitNote(e) {
 let drag = null;
 const roll = $('roll');
 roll.addEventListener('pointerdown', e => {
+  const lay = S.layout;
+  if (lay && S.song && e.clientY - roll.getBoundingClientRect().top < lay.top - 2) {
+    S.cursor = (e.clientX - roll.getBoundingClientRect().left) / lay.pps;
+    if (S.play) play(S.cursor); else { draw(); syncTransport(S.cursor); }
+    return;
+  }
   const h = hitNote(e);
   if (!h) { selectNote(null); return; }
   // 触屏上先点一下选中、再拖，这样没选中音符时手指还能左右滑动卷帘
@@ -1776,10 +1850,11 @@ function renderTracks() {
     }
     const vol = el('input', { type: 'range', min: 0, max: 150, value: tr.vol });
     vol.oninput = () => { tr.vol = +vol.value; applyGains(); autosave(); };
+    vol.onchange = () => restart();
     row.append(el('label', { className: 'tvol' }, ['音量', vol]));
     const toggle = (key, txt, cls, title) => {
       const b = el('button', { className: 'tbtn ' + cls + (tr[key] ? ' on' : ''), textContent: txt, title });
-      b.onclick = () => { tr[key] = !tr[key]; renderTracks(); applyGains(); };
+      b.onclick = () => { tr[key] = !tr[key]; renderTracks(); applyGains(); restart(); };
       return b;
     };
     const del = el('button', { className: 'tbtn', textContent: '✕', title: '删除这条音轨' });
@@ -1847,6 +1922,16 @@ $('style').onchange = () => {
   st.dataset.prev = st.value;
   applyPreset(st.value); renderTracks(); restart();
 };
+$('blend').oninput = () => {
+  if (+$('blend').value < 100) {
+    let o = S.tracks.find(t => t.kind === 'orig');
+    if (!o) { o = mkTrack('orig'); S.tracks.unshift(o); renderTracks(); }
+    if (o.mute) { o.mute = false; renderTracks(); }
+  }
+  applyGains(); autosave();
+};
+$('accAmt').oninput = () => { $('accVal').textContent = $('accAmt').value + '%'; applyGains(); autosave(); };
+for (const id of ['blend', 'accAmt', 'rev']) $(id).addEventListener('change', () => restart());
 $('rev').oninput = () => { if (S.play) S.play.rg.gain.setTargetAtTime($('rev').value / 100, getCtx().currentTime, 0.05); autosave(); };
 
 // ---------- 自动保存（存在这台设备的 IndexedDB 里，关掉页面再打开还在） ----------
@@ -1867,7 +1952,7 @@ function unpackBuf(p) {
   p.ch.forEach((d, i) => b.copyToChannel(d, i));
   return b;
 }
-const SETTINGS = ['bpm', 'grid', 'key', 'sens', 'chordRate', 'rev', 'style'];
+const SETTINGS = ['bpm', 'grid', 'key', 'sens', 'chordRate', 'rev', 'style', 'blend', 'accAmt'];
 let saveTimer = null, restoring = false;
 function autosave() {
   // 作品改了，之前录好的视频就过时了
@@ -1881,7 +1966,7 @@ async function saveNow() {
   const keep = new Set(['audio:orig', ...tracks.filter(t => t.kind === 'audio').map(t => 'audio:' + t.id)]);
   try {
     await idb('readwrite', st => {
-      st.put({ v: 2, name: S.name, clips: S.clips, frames: S.frames, raw: S.raw, contour: S.contour, t0: S.t0, settings, tracks }, 'last');
+      st.put({ v: 3, name: S.name, clips: S.clips, frames: S.frames, raw: S.raw, contour: S.contour, t0: S.t0, settings, tracks }, 'last');
       const ks = st.getAllKeys();
       ks.onsuccess = () => ks.result.forEach(k => { if (String(k).startsWith('audio:') && !keep.has(k)) st.delete(k); });
     });
@@ -1895,12 +1980,14 @@ async function restore() {
     S.buf = unpackBuf(a); S.name = p.name; S.frames = p.frames; S.raw = p.raw; S.contour = p.contour;
     S.t0 = p.t0 != null ? p.t0 : Math.min(...S.raw.map(n => n.start));
     S.clips = p.clips || [{ name: p.name, dur: S.buf.duration }]; renderClips();
-    for (const id of SETTINGS) $(id).value = p.settings[id];
+    for (const id of SETTINGS) if (p.settings[id] != null) $(id).value = p.settings[id];
+    $('accVal').textContent = $('accAmt').value + '%';
     $('snapKey').checked = p.v >= 2 && p.settings.snapKey;   // 旧作品默认开着这个，会把唱对的音改掉，统一关掉
     $('style').dataset.prev = $('style').value;
     S.tracks = [];
     for (const t of p.tracks) {
       if (t.kind === 'audio') { const b = await idb('readonly', st => st.get('audio:' + t.id)); if (!b) continue; t.buf = unpackBuf(b); }
+      if (t.kind === 'orig' && !(p.v >= 3)) t.mute = false;   // 以前原声轨默认静音，现在交给「原声 ⟷ 乐器」那条轴
       S.tracks.push(t);
     }
     nextId = Math.max(nextId, ...S.tracks.map(t => t.id + 1));
