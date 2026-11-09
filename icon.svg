@@ -1,36 +1,45 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 哼唱编曲台 logo：包豪斯几何（红圆、黄半圆、方格）× Y2K（铬银音符、闪星），中间是闭眼唱歌的小Y -->
   <defs>
-    <radialGradient id="glow" cx="50%" cy="56%" r="56%">
-      <stop offset="0" stop-color="#8C7BE0"/>
-      <stop offset="1" stop-color="#1D2A6B"/>
-    </radialGradient>
+    <linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".42" stop-color="#dfe3ef"/>
+      <stop offset=".52" stop-color="#8a93ab"/>
+      <stop offset=".62" stop-color="#f4f6fc"/>
+      <stop offset="1" stop-color="#b9c1d4"/>
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#2c3b85" stroke-width="2"/>
+    </pattern>
+    <clipPath id="frame"><rect width="512" height="512"/></clipPath>
   </defs>
-  <rect width="512" height="512" fill="url(#glow)"/>
-  <!-- 声波 -->
-  <g fill="none" stroke="#FFC61A" stroke-width="10" stroke-linecap="round" opacity=".9">
-    <path d="M362 228c22 14 22 50 0 64"/>
-    <path d="M388 204c38 26 38 86 0 112"/>
+  <g clip-path="url(#frame)">
+    <rect width="512" height="512" fill="#1D2A6B"/>
+    <rect width="512" height="512" fill="url(#grid)"/>
+    <!-- 包豪斯色块 -->
+    <circle cx="392" cy="128" r="118" fill="#E63B2E"/>
+    <path d="M0 512V352a160 160 0 0 1 160 160z" fill="#FFC61A"/>
+    <rect x="404" y="404" width="74" height="74" fill="#3CC8E8" transform="rotate(12 441 441)"/>
+    <!-- 小Y：头和肩，从底边探出来 -->
+    <path d="M192 130l6-84 34 56 24-80 22 80 32-56 6 84z" fill="#FFC61A" stroke="#1D2A6B" stroke-width="10" stroke-linejoin="round"/>
+    <path d="M300 116c10-26 22-42 38-54" fill="none" stroke="#1D2A6B" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="342" cy="58" r="18" fill="#FFC61A" stroke="#1D2A6B" stroke-width="9"/>
+    <rect x="150" y="104" width="232" height="460" rx="56" fill="#FFD6E4" stroke="#1D2A6B" stroke-width="14"/>
+    <g fill="none" stroke="#1D2A6B" stroke-width="12" stroke-linecap="round">
+      <path d="M190 214q22 -22 44 0"/>
+      <path d="M298 214q22 -22 44 0"/>
+    </g>
+    <circle cx="190" cy="262" r="19" fill="#FF8FA8"/>
+    <circle cx="342" cy="262" r="19" fill="#FF8FA8"/>
+    <ellipse cx="266" cy="300" rx="30" ry="38" fill="#E2394F" stroke="#1D2A6B" stroke-width="11"/>
+    <ellipse cx="266" cy="318" rx="15" ry="11" fill="#FF8FA8"/>
+    <!-- 铬银音符 + 粉色硬投影 -->
+    <g transform="translate(58 92) rotate(-12)">
+      <path transform="translate(7 7)" d="M60 0v104a30 24 0 1 1 -16 -21V22l64 -14v78a30 24 0 1 1 -16 -21V-6z" fill="#FF5FB8"/>
+      <path d="M60 0v104a30 24 0 1 1 -16 -21V22l64 -14v78a30 24 0 1 1 -16 -21V-6z" fill="url(#chrome)" stroke="#1D2A6B" stroke-width="8" stroke-linejoin="round"/>
+    </g>
+    <!-- 闪星 -->
+    <path d="M440 300l7 21 21 7-21 7-7 21-7-21-21-7 21-7z" fill="#FFC61A"/>
+    <path d="M100 300l5 15 15 5-15 5-5 15-5-15-15-5 15-5z" fill="#ffffff"/>
   </g>
-  <!-- 音符 -->
-  <g fill="#FFC61A" stroke="#1D2A6B" stroke-width="7" stroke-linejoin="round">
-    <path transform="translate(22 6)" d="M392 92v70a20 16 -15 1 1 -12 -14V112l50-12v52a20 16 -15 1 1 -12 -14V86z"/>
-    <path d="M88 150v52a17 13 -15 1 1 -10 -11V140l26 -6v14z"/>
-  </g>
-  <!-- 天线 -->
-  <path d="M300 126c8-22 18-36 30-46" fill="none" stroke="#1D2A6B" stroke-width="9" stroke-linecap="round"/>
-  <circle cx="334" cy="74" r="17" fill="#FFC61A" stroke="#1D2A6B" stroke-width="8"/>
-  <!-- 头发 -->
-  <path d="M176 134l8-50 24 40 22-52 18 52 24-44 4 54z" fill="#FFC61A" stroke="#1D2A6B" stroke-width="8" stroke-linejoin="round"/>
-  <!-- 身体 -->
-  <rect x="148" y="122" width="208" height="330" rx="44" fill="#FFD6E4" stroke="#1D2A6B" stroke-width="12"/>
-  <!-- 闭眼唱歌 -->
-  <g fill="none" stroke="#1D2A6B" stroke-width="10" stroke-linecap="round">
-    <path d="M186 218q20 -20 40 0"/>
-    <path d="M278 218q20 -20 40 0"/>
-  </g>
-  <circle cx="186" cy="262" r="17" fill="#FF8FA8"/>
-  <circle cx="318" cy="262" r="17" fill="#FF8FA8"/>
-  <!-- 张大嘴 -->
-  <ellipse cx="252" cy="290" rx="24" ry="30" fill="#E2394F" stroke="#1D2A6B" stroke-width="9"/>
-  <ellipse cx="252" cy="304" rx="12" ry="9" fill="#FF8FA8"/>
 </svg>

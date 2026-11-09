@@ -4,13 +4,23 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>哼唱编曲台</title>
-<meta name="description" content="哼一句，就有一首歌：哼唱自动识别成音符，一键配和弦、贝斯、鼓，22 种音色随意换，导出视频发小红书。">
+<meta name="description" content="哼一句，就有一首歌：哼唱自动识别成音符，一键配和弦、贝斯、鼓，23 种音色随意换，导出视频发小红书。">
 <meta name="theme-color" content="#1D2A6B">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="哼唱编曲">
-<link rel="manifest" href="manifest.json">
-<link rel="icon" href="favicon-32.png">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="application-name" content="哼唱编曲">
+<meta name="msapplication-TileColor" content="#1D2A6B">
+<meta name="msapplication-TileImage" content="icon-144.png?v=2">
+<link rel="manifest" href="manifest.json?v=2">
+<!-- 各种尺寸都声明：很多安卓浏览器只认大尺寸的 rel=icon，太小就会显示成「灰底 + 首字」 -->
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=2">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png?v=2">
+<link rel="icon" type="image/png" sizes="96x96" href="icon-96.png?v=2">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=2">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=2">
+<link rel="apple-touch-icon" sizes="152x152" href="icon-152.png?v=2">
+<link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png?v=2">
 <script src="keys.js"></script>
 <style>
 /* 视觉：包豪斯（红黄蓝几何、粗线、网格）× Y2K（镭射渐变、铬银字、像素字、胶囊按钮、硬投影） */
@@ -99,7 +109,7 @@ input[type=checkbox]{accent-color:var(--accent);width:17px;height:17px}
 #tracks{display:flex;flex-direction:column;gap:10px;margin-top:16px}
 .track{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:9px 12px;background:var(--card);border:2px solid var(--edge);border-radius:16px;box-shadow:3px 3px 0 var(--shadow)}
 .track.off{opacity:.5}
-.tname{width:122px;font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:8px}
+.tname{width:150px;font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:8px}
 .tname::before{content:"";flex:none;width:14px;height:14px;border-radius:50%;background:var(--tc);border:2px solid var(--edge)}
 .track input[type=number]{width:70px}
 .track input[type=range]{width:100px}
@@ -145,6 +155,11 @@ dialog input[type=text]{font:20px "VT323",monospace;letter-spacing:.12em;width:1
 #recTime{font-size:24px;margin-left:8px;color:var(--red)}
 #recMeter{display:none;margin-top:6px;width:240px;max-width:100%;height:34px}
 #recMeter.show{display:block}
+#appendWrap{margin:12px 0 0}
+#clips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.clip{display:inline-flex;align-items:center;gap:8px;font-size:13px;background:var(--key);border:2px solid var(--edge);border-radius:999px;padding:3px 4px 3px 4px}
+.clip b{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--blue);color:#fff;font:16px/1 "VT323",monospace}
+.clip .tbtn{width:24px;height:24px;font-size:14px;border-radius:50%}
 #vidPreview{width:100%;max-width:420px;border-radius:16px;border:2.5px solid var(--edge);margin-top:12px;display:none;background:#000}
 </style>
 </head>
@@ -152,7 +167,7 @@ dialog input[type=text]{font:20px "VT323",monospace;letter-spacing:.12em;width:1
 <header class="hero">
   <div class="geo" aria-hidden="true"><i class="g5"></i><i class="g1"></i><i class="g2"></i><i class="g3"></i><i class="g4"></i></div>
   <div class="heroIn">
-    <img class="logo" src="icon-192.png" alt="">
+    <img class="logo" src="icon-192.png?v=2" alt="">
     <div class="grow">
       <div class="kicker px">✦ Y-WORLD SOUND LAB ✦</div>
       <div class="wordmark">HUM STUDIO</div>
@@ -178,11 +193,13 @@ dialog input[type=text]{font:20px "VT323",monospace;letter-spacing:.12em;width:1
       </div>
     </div>
     <div class="row">
-      <label class="btn primary">选择录音文件<input type="file" id="file" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm,.aac,.flac" hidden></label>
+      <label class="btn primary">选择录音 / 视频<input type="file" id="file" accept="audio/*,video/*,.m4a,.mp3,.wav,.ogg,.webm,.aac,.flac,.mp4,.mov" multiple hidden></label>
       <button id="appImport" class="btn blue">从 App 导入</button>
       <button id="demo" class="btn yellow">用示例哼唱试试</button>
     </div>
-    <p id="status" class="muted">支持手机录音常见格式（m4a / mp3 / wav 等），电脑上也可以直接把录音文件拖进页面。哼的时候用“嗯 / 啦 / 嘟”，一个音一个音分开哼，识别会更准。</p>
+    <label class="ctl inline" id="appendWrap" hidden><input type="checkbox" id="appendMode">新录的 / 新选的接在上一段后面（多段拼成一首）</label>
+    <div id="clips" hidden></div>
+    <p id="status" class="muted">录音和视频都可以，一次能选好几段，会按顺序拼成一首；电脑上也可以直接把文件拖进页面。哼的时候用“嗯 / 啦 / 嘟”，一个音一个音分开哼，识别会更准。</p>
   </section>
 
   <section class="card">
@@ -192,7 +209,7 @@ dialog input[type=text]{font:20px "VT323",monospace;letter-spacing:.12em;width:1
       <label class="ctl">节奏对齐<select id="grid"><option value="0">不对齐（保留原节奏）</option><option value="1">四分音符</option><option value="2" selected>八分音符</option><option value="4">十六分音符</option></select></label>
       <label class="ctl">调性<select id="key"></select></label>
       <label class="ctl">识别灵敏度<input type="range" id="sens" min="1" max="10" value="5"></label>
-      <label class="ctl inline"><input type="checkbox" id="snapKey" checked>跑调的音自动修正到调内</label>
+      <label class="ctl inline" title="一般不用开：识别已经会跟着你的音准走，开了反而可能把唱对的音改掉"><input type="checkbox" id="snapKey">把调外的音挪进调里</label>
     </div>
     <div id="rollWrap"><canvas id="roll"></canvas></div>
     <div id="noteBar">
@@ -215,13 +232,14 @@ dialog input[type=text]{font:20px "VT323",monospace;letter-spacing:.12em;width:1
     <div id="tracks"></div>
     <div class="row" style="margin-top:10px">
       <select id="addTrack" class="btn"></select>
-      <input type="file" id="audioFile" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm,.aac,.flac" hidden>
-      <span class="muted">每条音轨都能单独换音色、调音量；M = 静音，S = 只听这一轨。同一段旋律可以加好几条“主旋律”叠出混合音色。</span>
+      <input type="file" id="audioFile" accept="audio/*,video/*,.m4a,.mp3,.wav,.ogg,.webm,.aac,.flac,.mp4,.mov" multiple hidden>
+      <span class="muted">5 个音轨任你选，解锁进阶，最高可添加 15 个。每条音轨都能单独换音色、调音量；M = 静音，S = 只听这一轨。</span>
     </div>
     <div class="row" style="margin-top:14px">
       <button id="play" class="btn primary" disabled>▶ 播放</button>
       <button id="stop" class="btn" disabled>■ 停止</button>
       <button id="vid" class="btn" disabled>导出小红书视频</button>
+      <button id="coverBtn" class="btn" disabled>导出封面图</button>
       <button id="wav" class="btn" disabled>导出 WAV 音频</button>
       <button id="mid" class="btn" disabled>导出 MIDI<span class="lock">🔒</span></button>
     </div>
@@ -236,7 +254,7 @@ dialog input[type=text]{font:20px "VT323",monospace;letter-spacing:.12em;width:1
   <ul>
     <li>全部 23 种音色：古筝、二胡、吉他、电钢琴、人声合唱…</li>
     <li>全部编曲风格：流行乐队、民谣、Lo-fi、国风、空灵</li>
-    <li>音轨随便加：和声、扫弦、鼓、导入自己的人声</li>
+    <li>最高可添加 15 个音轨：和声、扫弦、鼓、导入自己的人声和视频</li>
     <li>导出视频不带水印 · 导出 MIDI</li>
     <li>以后新增的音色和功能，全部免费更新</li>
   </ul>
@@ -257,7 +275,7 @@ dialog input[type=text]{font:20px "VT323",monospace;letter-spacing:.12em;width:1
 
 <dialog id="appDlg">
   <h3>从 App 导入录音</h3>
-  <p class="muted">支持 iPhone 语音备忘录、安卓录音机、微信里存下的录音等（m4a / mp3 / wav / aac）。</p>
+  <p class="muted">支持 iPhone 语音备忘录、安卓录音机、微信里存下的录音，也支持手机拍的视频（会只取里面的声音）。可以一次选好几段，按顺序拼成一首。</p>
   <ol id="appSteps"></ol>
   <div class="dlgBtns">
     <button type="button" class="btn" id="appClose">取消</button>
@@ -283,28 +301,121 @@ const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const keyName = k => NAMES[k.pc] + (k.mode === 'maj' ? ' 大调' : ' 小调');
 
 let actx = null;
-const getCtx = () => actx || (actx = new (window.AudioContext || window.webkitAudioContext)());
+// latencyHint 'playback'：手机上缓冲大一点，换来不卡顿、不爆音
+const getCtx = () => actx || (actx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' }));
+// iPhone 打开静音开关时，网页的 Web Audio 默认不出声。
+// iOS 17+：把声音声明成「播放音乐」类型就不受静音开关影响；更老的系统：同时放一段听不见的空白音频，把声音通道切过去。
+let silentEl = null;
+function unmuteIOS() {
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+  if (navigator.audioSession || !/iPhone|iPad|iPod/.test(navigator.userAgent)) return;
+  if (!silentEl) {
+    const n = 4410, b = new ArrayBuffer(44 + n * 2), dv = new DataView(b), w = (o, str) => [...str].forEach((ch, i) => dv.setUint8(o + i, ch.charCodeAt(0)));
+    w(0, 'RIFF'); dv.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+    dv.setUint32(24, 44100, true); dv.setUint32(28, 88200, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); w(36, 'data'); dv.setUint32(40, n * 2, true);
+    silentEl = new Audio(URL.createObjectURL(new Blob([b], { type: 'audio/wav' }))); silentEl.loop = true; silentEl.setAttribute('playsinline', '');
+  }
+  silentEl.play().catch(() => {});
+}
+document.addEventListener('pointerdown', unmuteIOS, true);
+document.addEventListener('visibilitychange', () => { if (document.hidden && silentEl) silentEl.pause(); });
 const S = { buf: null, frames: null, contour: [], raw: [], autoKey: null, song: null, play: null, name: 'my-song' };
 const setStatus = t => { $('status').textContent = t; };
 
-// ---------- 输入 ----------
-async function loadFile(f) {
-  setStatus('正在读取 ' + f.name + ' …');
-  try {
-    const buf = await getCtx().decodeAudioData(await f.arrayBuffer());
-    await loadBuffer(buf, f.name.replace(/\.[^.]+$/, '') || '我的录音');
-  } catch (err) { setStatus('无法读取这个音频文件（' + err.message + '）。可以先在手机上把它转成 m4a / mp3 / wav 再试。'); }
+// ---------- 输入：一段或多段录音 / 视频，可以接在上一段后面，拼成一首 ----------
+// 先直接解码；读不了的视频（有些手机拍的 mov）就边播放边把声音录下来
+async function decodeMedia(f) {
+  const data = await f.arrayBuffer();
+  try { return await getCtx().decodeAudioData(data.slice(0)); }
+  catch (err) {
+    if (!/^video\//.test(f.type) && !/\.(mp4|mov|m4v|webm|3gp)$/i.test(f.name)) throw err;
+    return await grabVideoAudio(f);
+  }
 }
+function grabVideoAudio(f) {
+  return new Promise((resolve, reject) => {
+    const ctx = getCtx(), v = document.createElement('video'), url = URL.createObjectURL(f);
+    v.src = url; v.playsInline = true; v.preload = 'auto';
+    const src = ctx.createMediaElementSource(v), sp = ctx.createScriptProcessor(4096, 2, 2), mute = ctx.createGain(), L = [], R = [];
+    mute.gain.value = 0; src.connect(sp); sp.connect(mute); mute.connect(ctx.destination);
+    sp.onaudioprocess = e => {
+      if (v.paused) return;
+      L.push(e.inputBuffer.getChannelData(0).slice()); R.push(e.inputBuffer.getChannelData(1).slice());
+      setStatus('正在从视频「' + f.name + '」里取声音… ' + Math.floor(v.currentTime) + ' / ' + Math.ceil(v.duration || 0) + ' 秒');
+    };
+    const done = () => {
+      sp.disconnect(); src.disconnect(); URL.revokeObjectURL(url);
+      const n = L.reduce((a, x) => a + x.length, 0);
+      if (!n) { reject(new Error('视频里没有声音')); return; }
+      const out = ctx.createBuffer(2, n, ctx.sampleRate); let o = 0;
+      L.forEach((x, i) => { out.copyToChannel(x, 0, o); out.copyToChannel(R[i], 1, o); o += x.length; });
+      resolve(out);
+    };
+    v.onended = done; v.onerror = () => reject(new Error('这个视频格式打不开'));
+    ctx.resume().then(() => v.play()).catch(reject);
+  });
+}
+// 多段拼成一段：中间留 0.4 秒空白，识别时就会自然断开
+function joinBuffers(list) {
+  const ctx = getCtx(), sr = ctx.sampleRate, gap = Math.round(sr * 0.4), nc = Math.max(...list.map(b => b.numberOfChannels));
+  const len = list.reduce((a, b) => a + b.length, 0) + gap * (list.length - 1), out = ctx.createBuffer(nc, len, sr);
+  let o = 0;
+  list.forEach(b => { for (let c = 0; c < nc; c++) out.copyToChannel(b.getChannelData(Math.min(c, b.numberOfChannels - 1)), c, o); o += b.length + gap; });
+  return out;
+}
+// items: [{ buf, name }]。勾了「接在后面」就拼到现在这首的后面，否则开始新的一首
+async function addSources(items) {
+  if (!items.length) return;
+  const append = $('appendMode').checked && S.buf;
+  const bufs = (append ? [S.buf] : []).concat(items.map(x => x.buf));
+  const clips = append ? (S.clips || [{ name: S.name, dur: S.buf.duration }]).slice() : [];
+  for (const x of items) clips.push({ name: x.name, dur: x.buf.duration });
+  const name = append ? S.name : items.length > 1 ? items[0].name + ' 等 ' + items.length + ' 段' : items[0].name;
+  await loadBuffer(bufs.length > 1 ? joinBuffers(bufs) : bufs[0], name, clips);
+}
+async function loadFiles(files) {
+  const items = [];
+  for (const f of files) {
+    setStatus('正在读取 ' + f.name + ' …');
+    try { items.push({ buf: await decodeMedia(f), name: f.name.replace(/\.[^.]+$/, '') || '我的录音' }); }
+    catch (err) { setStatus('读不了「' + f.name + '」（' + err.message + '）。可以先在手机上把它转成 m4a / mp3 / wav 再试。'); }
+  }
+  await addSources(items);
+}
+const loadFile = f => loadFiles([f]);
 $('file').onchange = e => {
-  const f = e.target.files[0]; e.target.value = '';
-  if (f) loadFile(f);
+  const fs = [...e.target.files]; e.target.value = '';
+  if (fs.length) loadFiles(fs);
 };
+// 片段列表：每段可以单独删掉
+function renderClips() {
+  const box = $('clips'), cl = S.clips || [];
+  $('appendWrap').hidden = !S.buf;
+  box.innerHTML = '';
+  box.hidden = cl.length < 2;
+  if (cl.length < 2) return;
+  cl.forEach((c, i) => {
+    const x = el('button', { className: 'tbtn', textContent: '✕', title: '去掉这一段' });
+    x.onclick = () => removeClip(i);
+    box.append(el('span', { className: 'clip' }, [el('b', { textContent: (i + 1) + '' }), c.name + ' · ' + c.dur.toFixed(1) + ' 秒', x]));
+  });
+}
+async function removeClip(i) {
+  const sr = S.buf.sampleRate, gap = Math.round(sr * 0.4), parts = []; let o = 0;
+  S.clips.forEach((c, k) => {
+    const n = Math.round(c.dur * sr);
+    if (k !== i) { const b = getCtx().createBuffer(S.buf.numberOfChannels, n, sr); for (let ch = 0; ch < b.numberOfChannels; ch++) b.copyToChannel(S.buf.getChannelData(ch).subarray(o, o + n), ch); parts.push(b); }
+    o += n + gap;
+  });
+  const clips = S.clips.filter((_, k) => k !== i);
+  await loadBuffer(parts.length > 1 ? joinBuffers(parts) : parts[0], S.name, clips);
+}
 // 电脑上可以直接把录音文件拖进页面
 document.addEventListener('dragover', e => e.preventDefault());
 document.addEventListener('drop', e => {
   e.preventDefault();
-  const f = [...(e.dataTransfer.files || [])].find(x => /^audio\/|\.(m4a|mp3|wav|ogg|webm|aac|flac)$/i.test(x.type || x.name));
-  if (f) loadFile(f);
+  const fs = [...(e.dataTransfer.files || [])].filter(x => /^(audio|video)\/|\.(m4a|mp3|wav|ogg|webm|aac|flac|mp4|mov)$/i.test(x.type || x.name));
+  if (fs.length) loadFiles(fs);
 });
 
 // ---------- 一键录音：大红按钮，显示时间和音量 ----------
@@ -332,7 +443,7 @@ $('rec').onclick = async () => {
       try {
         const blob = new Blob(chunks, { type: chunks[0] && chunks[0].type });
         const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
-        await loadBuffer(buf, '我的哼唱');
+        await addSources([{ buf, name: '我的哼唱' }]);
       } catch (err) { setStatus('录音解析失败：' + err.message); }
     };
     rec.start();
@@ -410,12 +521,14 @@ $('demo').onclick = async () => {
   g.gain.setTargetAtTime(0, t, 0.05);
   o.connect(lp); lp.connect(g); g.connect(oc.destination);
   o.start(0); lfo.start(0);
+  $('appendMode').checked = false;
   await loadBuffer(await oc.startRendering(), '示例-小星星');
 };
 
-async function loadBuffer(buf, name) {
+async function loadBuffer(buf, name, clips) {
   stop();
-  S.buf = buf; S.name = name; S.frames = null;
+  S.buf = buf; S.name = name; S.frames = null; S.clips = clips || [{ name, dur: buf.duration }];
+  renderClips();
   idb('readwrite', st => st.put(packBuf(buf), 'audio:orig')).catch(() => {});
   renderTracks();
   setStatus('正在识别旋律…');
@@ -473,8 +586,12 @@ async function detectPitch(x, prog) {
 }
 
 // ---------- 切分成音符 ----------
+// 真人哼唱会滑音、颤音、越唱越跑，所以不是每一帧先四舍五入，而是：
+// ① 算一条「跟着人走」的音准参考线（前后 3 秒的平均偏差，慢慢跑调也跟得上）
+// ② 按换气 / 音量起伏 / 明显的音高跳变把声音切成一段一段
+// ③ 每段取中间那部分的中位数当音高，颤音和滑音不会把音切碎
 function segment(fr, sens) {
-  const n = fr.t.length, thr = fr.maxRms * (0.26 - 0.022 * sens);
+  const n = fr.t.length, h = fr.hop, thr = fr.maxRms * (0.2 - 0.015 * sens);
   const m = new Float32Array(n);
   for (let i = 0; i < n; i++) m[i] = (!isNaN(fr.midi[i]) && fr.rms[i] > thr) ? fr.midi[i] : NaN;
   // 修正八度跳变
@@ -494,45 +611,73 @@ function segment(fr, sens) {
     for (let j = Math.max(0, i - 2); j <= Math.min(n - 1, i + 2); j++) if (!isNaN(m[j])) nb.push(m[j]);
     nb.sort((a, b) => a - b); sm[i] = nb[nb.length >> 1];
   }
-  // 整体音准偏移（哼得整体偏高/偏低时自动校正）
-  let sx = 0, sy = 0;
-  for (let i = 0; i < n; i++) if (!isNaN(sm[i])) { const a = 2 * Math.PI * (sm[i] - Math.round(sm[i])); sx += Math.cos(a); sy += Math.sin(a); }
-  const off = Math.atan2(sy, sx) / (2 * Math.PI);
+  // ① 音准参考线：每一帧取前后 3 秒内「离最近半音差多少」的圆周平均，再展开成连续的曲线
+  const cs = new Float64Array(n + 1), sn = new Float64Array(n + 1);
+  for (let i = 0; i < n; i++) {
+    const a = isNaN(sm[i]) ? 0 : 2 * Math.PI * (sm[i] - Math.round(sm[i]));
+    cs[i + 1] = cs[i] + (isNaN(sm[i]) ? 0 : Math.cos(a)); sn[i + 1] = sn[i] + (isNaN(sm[i]) ? 0 : Math.sin(a));
+  }
+  const W = Math.round(3 / h), off = new Float32Array(n);
+  let prevOff = null;
+  for (let i = 0; i < n; i++) {
+    const a = Math.max(0, i - W), b = Math.min(n, i + W + 1);
+    let o = Math.atan2(sn[b] - sn[a], cs[b] - cs[a]) / (2 * Math.PI);
+    if (prevOff != null) o += Math.round(prevOff - o);   // 展开：慢慢跑调超过半个音也不会突然跳一格
+    off[i] = prevOff = o;
+  }
+  const c = new Float32Array(n).fill(NaN);
   S.contour = [];
-  const q = new Float32Array(n);
+  for (let i = 0; i < n; i++) if (!isNaN(sm[i])) { c[i] = sm[i] - off[i]; S.contour.push([fr.t[i], c[i]]); }
+  // 音量包络（只平滑 3 帧：去掉低音的波纹，又不会抹平连着哼时很浅的那一下换气）
+  const env = new Float32Array(n);
+  for (let i = 0; i < n; i++) { let s = 0, k = 0; for (let j = Math.max(0, i - 1); j <= Math.min(n - 1, i + 1); j++) { s += fr.rms[j]; k++; } env[i] = s / k; }
+  // ② 先找连续发声的区间（中间断 2 帧以内算连着）
+  const runs = []; let rs = -1, gap = 0;
   for (let i = 0; i < n; i++) {
-    q[i] = isNaN(sm[i]) ? NaN : Math.round(sm[i] - off);
-    if (!isNaN(sm[i])) S.contour.push([fr.t[i], sm[i] - off]);
+    if (!isNaN(c[i])) { if (rs < 0) rs = i; gap = 0; }
+    else if (rs >= 0 && ++gap > 2) { runs.push([rs, i - gap]); rs = -1; gap = 0; }
   }
-  // 带迟滞的分段
-  const notes = []; let cur = null, cand = null, gap = 0;
-  for (let i = 0; i < n; i++) {
-    const p = q[i];
-    if (isNaN(p)) { if (++gap >= 3 && cur) { notes.push(cur); cur = null; cand = null; } continue; }
-    gap = 0;
-    if (!cur) { cur = { si: i, ei: i, p }; continue; }
-    if (p === cur.p) { cur.ei = i; cand = null; continue; }
-    if (cand && cand.p === p) cand.n++; else cand = { p, n: 1, i };
-    if (cand.n >= 4) { cur.ei = Math.max(cur.si, cand.i - 1); notes.push(cur); cur = { si: cand.i, ei: i, p }; cand = null; }
-  }
-  if (cur) notes.push(cur);
-  // 同音反复：按音量的起伏再切开
-  const out = [], minDur = 0.13 - 0.007 * sens, h = fr.hop;
-  for (const nt of notes) {
-    const segs = []; let s = nt.si, peak = 0, inDip = false, di = -1, dv = Infinity;
-    for (let j = nt.si; j <= nt.ei; j++) {
-      const r = fr.rms[j];
-      if (!inDip) { if (r > peak) peak = r; if (r < 0.5 * peak) { inDip = true; di = j; dv = r; } }
-      else {
-        if (r < dv) { dv = r; di = j; }
-        if (r > 0.6 * peak && r > dv * 1.8) { segs.push([s, di]); s = di + 1; peak = r; inDip = false; }
+  if (rs >= 0) runs.push([rs, n - 1 - gap]);
+  const dipRatio = 0.68 + 0.015 * sens, segs = [];
+  for (const [a, b] of runs) {
+    // 按音量凹下去的地方切（连着哼同一个音时，靠这一下“换气”分开）
+    const cuts = [a];
+    for (let i = a + 4; i <= b - 4; i++) {
+      if (!(env[i] <= env[i - 1] && env[i] <= env[i + 1])) continue;
+      let mb = 0, ma = 0;
+      for (let j = Math.max(a, i - 15); j < i; j++) mb = Math.max(mb, env[j]);
+      for (let j = i + 1; j <= Math.min(b, i + 15); j++) ma = Math.max(ma, env[j]);
+      if (env[i] < dipRatio * Math.min(mb, ma) && i - cuts[cuts.length - 1] >= 6) cuts.push(i);
+    }
+    cuts.push(b + 1);
+    // 再按音高跳变切：离当前音的中位数超过 0.55 个半音、并且持续 50ms 以上
+    for (let k = 0; k < cuts.length - 1; k++) {
+      let s0 = cuts[k];
+      const e0 = cuts[k + 1] - 1;
+      let ref = null, buf = [], away = 0, awayAt = -1;
+      for (let i = s0; i <= e0; i++) {
+        if (isNaN(c[i])) continue;
+        if (ref == null) { buf.push(c[i]); if (buf.length >= 4) ref = buf.slice().sort((x, y) => x - y)[buf.length >> 1]; continue; }
+        if (Math.abs(c[i] - ref) > 0.55) { if (!away) awayAt = i; away++; }
+        else { away = 0; buf.push(c[i]); if (buf.length > 30) buf.shift(); ref = buf.slice().sort((x, y) => x - y)[buf.length >> 1]; }
+        if (away >= 5) { segs.push([s0, awayAt - 1]); s0 = awayAt; ref = null; buf = []; away = 0; i = awayAt - 1; }
       }
+      segs.push([s0, e0]);
     }
-    segs.push([s, nt.ei]);
-    for (const [a, b] of segs) {
-      const st = fr.t[a] - h / 2, en = fr.t[b] + h / 2;
-      if (en - st >= minDur) out.push({ start: st, end: en, midi: nt.p, off: false });
-    }
+  }
+  // ③ 每段取中间 60% 的中位数当音高；太短或太轻的碎片不要
+  const minDur = 0.12 - 0.006 * sens, out = [];
+  for (const [a, b] of segs) {
+    const st = fr.t[a] - h / 2, en = fr.t[b] + h / 2;
+    if (en - st < minDur) continue;
+    const vals = [];
+    const q0 = a + Math.floor((b - a) * 0.2), q1 = b - Math.floor((b - a) * 0.2);
+    for (let i = q0; i <= q1; i++) if (!isNaN(c[i])) vals.push(c[i]);
+    if (vals.length < 3) continue;
+    let pk = 0; for (let i = a; i <= b; i++) pk = Math.max(pk, env[i]);
+    if (pk < fr.maxRms * 0.3 && en - st < 0.25) continue;   // 收尾时很轻很短的残音
+    vals.sort((x, y) => x - y);
+    out.push({ start: st, end: en, midi: Math.round(vals[vals.length >> 1]), off: false });
   }
   return out;
 }
@@ -562,9 +707,17 @@ function detectKey(raw) {
     for (let i = 0; i < 12; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) ** 2; syy += (ys[i] - my) ** 2; }
     return sxx && syy ? sxy / Math.sqrt(sxx * syy) : 0;
   };
+  // 短旋律只看时长分布很容易猜错，再加三条更像人判断的规则：
+  // 唱到调外的音要扣分；最后一个音（其次是第一个）多半是主音；随口哼的歌大多是大调
+  const act = raw.filter(n => !n.off).sort((a, b) => a.start - b.start), pc = n => ((n.midi % 12) + 12) % 12;
+  const total = h.reduce((a, b) => a + b) || 1, first = act.length ? pc(act[0]) : -1, last = act.length ? pc(act[act.length - 1]) : -1;
+  const score = (prof, sc, k, major) => {
+    let out = 0; for (let i = 0; i < 12; i++) if (!sc.includes((i - k + 12) % 12)) out += h[i];
+    return corr(prof, k) - 1.2 * out / total + (last === k ? 0.2 : 0) + (first === k ? 0.06 : 0) + (major ? 0.04 : 0);
+  };
   let best = { pc: 0, mode: 'maj' }, bv = -Infinity;
   for (let k = 0; k < 12; k++) {
-    const a = corr(MAJ, k), b = corr(MIN, k);
+    const a = score(MAJ, MAJ_S, k, true), b = score(MIN, MIN_S, k, false);
     if (a > bv) { bv = a; best = { pc: k, mode: 'maj' }; }
     if (b > bv) { bv = b; best = { pc: k, mode: 'min' }; }
   }
@@ -677,7 +830,7 @@ function rebuild() {
   $('info').innerHTML = `识别到 <b>${s.mel.length}</b> 个音符 · ${keyName(s.key)} · ${s.bpm} BPM · ${bars} 小节<br>和弦：<span class="chords">${s.chords.map(c => c.name).join('  ')}</span><br>拖动音符：上下改音高、左右挪位置、拖右边缘改长短（手机上先点一下选中再拖）；觉得节奏不对就改一下 BPM，或把“节奏对齐”调成“不对齐”。`;
 }
 
-function enable(on) { ['play', 'stop', 'wav', 'mid', 'vid'].forEach(id => $(id).disabled = !on); }
+function enable(on) { ['play', 'stop', 'wav', 'mid', 'vid', 'coverBtn'].forEach(id => $(id).disabled = !on); }
 
 function voicing(ch) {
   return ch.pcs.map(pc => { let m = 60 + pc; if (m > 66) m -= 12; return m; }).sort((a, b) => a - b);
@@ -1551,7 +1704,7 @@ function el(tag, props = {}, kids = []) {
 const FREE_INST = new Set(['piano', 'box', 'guitar', 'chime', 'flute', 'bird']);
 const FREE_PRESETS = new Set(['piano', 'none']);
 const FREE_KINDS = new Set(['mel', 'pad', 'arp', 'bass', 'orig']);
-const FREE_TRACKS = 5;
+const FREE_TRACKS = 5, PRO_TRACKS = 15;
 const PRO_STORE = 'hum.unlock';
 // 小红书「HumHub」星星密钥商品页（换链接只改这一行；留空就不显示购买按钮）
 const SHOP_URL = '';
@@ -1608,7 +1761,7 @@ function renderTracks() {
   for (const tr of S.tracks) {
     const K = KINDS[tr.kind], row = el('div', { className: 'track' + (on(tr) ? '' : ' off') });
     row.style.setProperty('--tc', K.color);
-    const name = tr.kind === 'audio' ? '🎵 ' + tr.name : tr.kind === 'orig' && !S.buf ? K.name + '（未载入）' : K.name;
+    const name = (tr.kind === 'audio' ? '🎵 ' + tr.name : tr.kind === 'orig' && !S.buf ? K.name + '（未载入）' : K.name) + (on(tr) ? '' : tr.mute ? ' · 静音中' : ' · 没在听');
     row.append(el('div', { className: 'tname', textContent: name, title: name }));
     const set = (key, rerender) => v => { tr[key] = v; markCustom(); if (rerender) renderTracks(); restart(); };
     if (tr.inst) row.append(makeSelect(INST_GROUPS, tr.inst, set('inst'), v => FREE_INST.has(v), '这个音色在完整版里'));
@@ -1637,35 +1790,48 @@ function renderTracks() {
   renderAddMenu();
   autosave();
 }
+const TRACK_LIMIT_TEXT = FREE_TRACKS + ' 个音轨任你选，解锁进阶，最高可添加 ' + PRO_TRACKS + ' 个';
+const trackLimit = () => PRO ? PRO_TRACKS : FREE_TRACKS;
 function renderAddMenu() {
-  const a = $('addTrack'), full = !PRO && S.tracks.length >= FREE_TRACKS;
+  const a = $('addTrack'), n = S.tracks.length, full = n >= trackLimit();
   a.innerHTML = '';
-  a.append(new Option('＋ 添加音轨…' + (full ? '（免费版最多 ' + FREE_TRACKS + ' 条 🔒）' : ''), ''));
+  a.append(new Option('＋ 添加音轨（' + n + ' / ' + trackLimit() + '）' + (full ? (PRO ? ' 已到上限' : ' · 解锁进阶最高 ' + PRO_TRACKS + ' 个 🔒') : ''), ''));
   for (const k of ['mel', 'harm', 'pad', 'arp', 'strum', 'bass', 'drums']) a.append(new Option(lockMark(FREE_KINDS.has(k)) + KINDS[k].name + (k === 'mel' ? '（再叠一种音色）' : ''), k));
   const o = new Option('原声哼唱' + (S.tracks.some(t => t.kind === 'orig') ? '（已在列表里）' : ''), 'orig');
   o.disabled = S.tracks.some(t => t.kind === 'orig');
-  a.append(o, new Option(lockMark(false) + '导入一段音频（人声 / 伴奏）…', 'file'));
+  a.append(o, new Option(lockMark(false) + '导入音频 / 视频（人声、伴奏，可以多选）…', 'file'));
   a.value = '';
+}
+// 加音轨前检查数量：免费 5 个，解锁后最多 15 个
+function roomFor(k = 1) {
+  if (S.tracks.length + k <= trackLimit()) return true;
+  if (!PRO) return needPro(TRACK_LIMIT_TEXT);
+  setStatus('最多 ' + PRO_TRACKS + ' 个音轨，先删掉一个再加吧。');
+  return false;
 }
 $('addTrack').onchange = () => {
   const k = $('addTrack').value; $('addTrack').value = '';
   if (!k) return;
-  if (!FREE_KINDS.has(k) && !needPro('「' + (k === 'file' ? '导入音频' : KINDS[k].name) + '」音轨在完整版里')) return;
-  if (S.tracks.length >= FREE_TRACKS && !needPro('免费版最多 ' + FREE_TRACKS + ' 条音轨，完整版不限')) return;
+  if (!FREE_KINDS.has(k) && !needPro('「' + (k === 'file' ? '导入音频 / 视频' : KINDS[k].name) + '」音轨在完整版里')) return;
+  if (!roomFor()) return;
   if (k === 'file') { $('audioFile').click(); return; }
   S.tracks.push(mkTrack(k, k === 'mel' ? { inst: 'flute', vol: 70 } : {}));
   markCustom(); renderTracks(); restart();
 };
 $('audioFile').onchange = async e => {
-  const f = e.target.files[0]; e.target.value = '';
-  if (!f) return;
-  try {
-    const buf = await getCtx().decodeAudioData(await f.arrayBuffer());
-    const tr = mkTrack('audio', { buf, name: f.name.replace(/\.[^.]+$/, '') });
-    S.tracks.push(tr);
-    idb('readwrite', st => st.put(packBuf(buf), 'audio:' + tr.id)).catch(() => {});
-    renderTracks(); restart();
-  } catch (err) { setStatus('无法读取这个音频文件（' + err.message + '）。'); }
+  const files = [...e.target.files]; e.target.value = '';
+  let added = 0;
+  for (const f of files) {
+    if (!roomFor()) break;
+    setStatus('正在读取 ' + f.name + ' …');
+    try {
+      const buf = await decodeMedia(f);
+      const tr = mkTrack('audio', { buf, name: f.name.replace(/\.[^.]+$/, '') });
+      S.tracks.push(tr); added++;
+      idb('readwrite', st => st.put(packBuf(buf), 'audio:' + tr.id)).catch(() => {});
+    } catch (err) { setStatus('读不了「' + f.name + '」（' + err.message + '）。'); }
+  }
+  if (added) { setStatus('加好了 ' + added + ' 条音频音轨。'); renderTracks(); restart(); }
 };
 function renderPresets() {
   const st = $('style'), cur = st.value || 'piano';
@@ -1715,7 +1881,7 @@ async function saveNow() {
   const keep = new Set(['audio:orig', ...tracks.filter(t => t.kind === 'audio').map(t => 'audio:' + t.id)]);
   try {
     await idb('readwrite', st => {
-      st.put({ name: S.name, frames: S.frames, raw: S.raw, contour: S.contour, t0: S.t0, settings, tracks }, 'last');
+      st.put({ v: 2, name: S.name, clips: S.clips, frames: S.frames, raw: S.raw, contour: S.contour, t0: S.t0, settings, tracks }, 'last');
       const ks = st.getAllKeys();
       ks.onsuccess = () => ks.result.forEach(k => { if (String(k).startsWith('audio:') && !keep.has(k)) st.delete(k); });
     });
@@ -1728,8 +1894,9 @@ async function restore() {
     restoring = true;
     S.buf = unpackBuf(a); S.name = p.name; S.frames = p.frames; S.raw = p.raw; S.contour = p.contour;
     S.t0 = p.t0 != null ? p.t0 : Math.min(...S.raw.map(n => n.start));
+    S.clips = p.clips || [{ name: p.name, dur: S.buf.duration }]; renderClips();
     for (const id of SETTINGS) $(id).value = p.settings[id];
-    $('snapKey').checked = p.settings.snapKey;
+    $('snapKey').checked = p.v >= 2 && p.settings.snapKey;   // 旧作品默认开着这个，会把唱对的音改掉，统一关掉
     $('style').dataset.prev = $('style').value;
     S.tracks = [];
     for (const t of p.tracks) {
@@ -1744,14 +1911,71 @@ async function restore() {
 
 // ---------- 导出小红书视频（3:4 竖版，边放边录） ----------
 const VW = 1080, VH = 1440, brandImg = new Image();
-brandImg.src = 'icon-192.png';
+brandImg.src = 'icon-192.png?v=2';
 let vrec = null;
+// 背景：深蓝底、方格、红圆、黄半圆、青色方块（strength 控制几何色块的浓淡，播放画面淡一点免得抢戏）
+function paintBackdrop(g, strength = 1) {
+  g.fillStyle = '#1D2A6B'; g.fillRect(0, 0, VW, VH);
+  g.strokeStyle = 'rgba(255,255,255,.07)'; g.lineWidth = 2;
+  for (let x = 0; x <= VW; x += 60) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, VH); g.stroke(); }
+  for (let y = 0; y <= VH; y += 60) { g.beginPath(); g.moveTo(0, y); g.lineTo(VW, y); g.stroke(); }
+  g.globalAlpha = strength;
+  g.fillStyle = '#E63B2E'; g.beginPath(); g.arc(930, 230, 250, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#FFC61A'; g.beginPath(); g.arc(0, VH, 330, -Math.PI / 2, 0); g.lineTo(0, VH); g.fill();
+  g.save(); g.translate(905, 1235); g.rotate(0.21); g.fillStyle = '#3CC8E8'; g.fillRect(-70, -70, 140, 140); g.restore();
+  g.globalAlpha = 1;
+}
+const vfont = (w, px, fam = '') => `${w} ${px}px ${fam}"Jost",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif`;
+// 封面：歌名大字 + 整首旋律的缩略图，适合当小红书封面（视频第一秒就是它，也可以单独导出成图片）
+function drawCover(g) {
+  const s = S.song;
+  paintBackdrop(g, 1);
+  g.textAlign = 'left'; g.fillStyle = '#C8D5F4'; g.font = '44px "VT323",monospace'; g.fillText('✦ HUM STUDIO ✦', 80, 150);
+  // 歌名：最多两行，粉色硬投影
+  // 7 个字以内一行；更长就平均分成两行（每行最多 7 个字，再长用省略号）
+  const t = [...(S.name || '我的哼唱')], lines = [];
+  if (t.length <= 7) lines.push(t.join(''));
+  else { const k = Math.ceil(Math.min(t.length, 14) / 2); lines.push(t.slice(0, k).join(''), t.slice(k, 2 * k).join('') + (t.length > 14 ? '…' : '')); }
+  g.font = vfont(800, 128);
+  lines.slice(0, 2).forEach((l, i) => {
+    const y = 330 + i * 150;
+    g.fillStyle = '#FF5FB8'; g.fillText(l, 88, y + 8);
+    g.fillStyle = '#fff'; g.fillText(l, 80, y);
+  });
+  // 信息胶囊
+  const info = keyName(s.key) + ' · ' + s.bpm + ' BPM · ' + s.mel.length + ' 个音';
+  g.font = vfont(600, 38);
+  const iw = g.measureText(info).width + 56, iy = lines.length > 1 ? 560 : 420;
+  g.strokeStyle = '#fff'; g.lineWidth = 4; g.beginPath(); g.roundRect ? g.roundRect(80, iy, iw, 70, 35) : g.rect(80, iy, iw, 70); g.stroke();
+  g.fillStyle = '#fff'; g.fillText(info, 108, iy + 48);
+  // 整首旋律缩略图：白色卡片 + 粉色硬投影
+  const X0 = 80, X1 = VW - 80, Y0 = 720, Y1 = 1100;
+  g.fillStyle = '#FF5FB8'; g.beginPath(); g.roundRect ? g.roundRect(X0 + 12, Y0 + 12, X1 - X0, Y1 - Y0, 36) : g.rect(X0 + 12, Y0 + 12, X1 - X0, Y1 - Y0); g.fill();
+  g.fillStyle = '#fff'; g.strokeStyle = '#1D2A6B'; g.lineWidth = 6;
+  g.beginPath(); g.roundRect ? g.roundRect(X0, Y0, X1 - X0, Y1 - Y0, 36) : g.rect(X0, Y0, X1 - X0, Y1 - Y0); g.fill(); g.stroke();
+  const ms = s.mel.map(n => n.m), lo = Math.min(...ms) - 1, hi = Math.max(...ms) + 1, end = Math.max(...s.mel.map(n => n.e));
+  const px = (X1 - X0 - 80) / end, rh = Math.min(40, (Y1 - Y0 - 80) / (hi - lo + 1));
+  const top = Y0 + (Y1 - Y0 - rh * (hi - lo + 1)) / 2;
+  g.strokeStyle = '#EEEAF7'; g.lineWidth = 2;
+  for (let m = lo; m <= hi; m++) { const y = top + (hi - m) * rh; g.beginPath(); g.moveTo(X0 + 30, y); g.lineTo(X1 - 30, y); g.stroke(); }
+  s.mel.forEach((n, i) => {
+    const x = X0 + 40 + n.s * px, w = Math.max(14, (n.e - n.s) * px - 8), y = top + (hi - n.m) * rh + 3;
+    g.fillStyle = ['#FF5FB8', '#1F44A8', '#FFC61A', '#E63B2E'][i % 4];
+    g.beginPath(); g.roundRect ? g.roundRect(x, y, w, rh - 6, Math.min(10, (rh - 6) / 2)) : g.rect(x, y, w, rh - 6); g.fill();
+  });
+  // 免费版底部带标识，完整版干净
+  if (!PRO) {
+    if (brandImg.complete) g.drawImage(brandImg, 80, 1220, 110, 110);
+    g.fillStyle = '#fff'; g.font = vfont(700, 44); g.fillText('哼唱编曲台', 214, 1268);
+    g.fillStyle = '#C8D5F4'; g.font = vfont(500, 32); g.fillText('哼一句，就有一首歌', 214, 1316);
+  }
+}
+async function loadVideoFonts() {
+  try { await Promise.all(['44px "VT323"', '800 128px "Jost"', '600 38px "Jost"'].map(f => document.fonts.load(f))); } catch (e) {}
+}
 function drawVideoFrame(g, pos, an, len) {
   const s = S.song, font = (w, px) => `${w} ${px}px system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif`;
-  const bg = g.createLinearGradient(0, 0, 0, VH); bg.addColorStop(0, '#1D2A6B'); bg.addColorStop(1, '#3B2F80');
-  g.fillStyle = bg; g.fillRect(0, 0, VW, VH);
-  const glow = g.createRadialGradient(VW / 2, 720, 40, VW / 2, 720, 700); glow.addColorStop(0, 'rgba(140,123,224,.45)'); glow.addColorStop(1, 'rgba(140,123,224,0)');
-  g.fillStyle = glow; g.fillRect(0, 0, VW, VH);
+  paintBackdrop(g, 0.55);
   // 标题与当前和弦
   const ch = s.chords.find(c => pos >= c.t && pos < c.t + c.d) || (pos < 0 ? s.chords[0] : s.chords[s.chords.length - 1]);
   g.textAlign = 'left'; g.fillStyle = '#fff'; g.font = font(800, 68); g.fillText(S.name.slice(0, 14), 70, 150);
@@ -1807,9 +2031,10 @@ async function exportVideo() {
   const stream = new MediaStream([...cv.captureStream(30).getVideoTracks(), ...dest.stream.getAudioTracks()]);
   const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6e6 }), chunks = [];
   rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
-  const len = songLength(S.song) + 1.2, lead = 0.6, at = ctx.currentTime + lead;
+  await loadVideoFonts();
+  const len = songLength(S.song) + 1.2, lead = 1.6, at = ctx.currentTime + lead;
   vrec = { cancelled: false };
-  drawVideoFrame(g, -lead, an, len);
+  drawCover(g);
   rec.start(250);
   renderSong(ctx, master, at, S.song, 0, true);
   $('vid').textContent = '录制中…点这里取消';
@@ -1817,7 +2042,8 @@ async function exportVideo() {
   await new Promise(res => {
     const tick = () => {
       const pos = ctx.currentTime - at;
-      drawVideoFrame(g, pos, an, len);
+      if (pos < -0.4) drawCover(g);
+      else { drawVideoFrame(g, pos, an, len); if (pos < 0) { g.globalAlpha = -pos / 0.4; drawCover(g); g.globalAlpha = 1; } }
       $('vid').textContent = `录制中 ${Math.max(0, Math.floor(pos))} / ${Math.ceil(len)} 秒 · 点这里取消`;
       // 用定时器而不是 requestAnimationFrame：页面被挡住时动画帧会停，录制就卡住了
       if (vrec.cancelled || pos > len) res(); else setTimeout(tick, 1000 / 30);
@@ -1837,6 +2063,13 @@ async function exportVideo() {
   setStatus(ext === 'mp4' ? '视频做好了，点「保存视频」存到手机相册 / 电脑，就能发小红书。'
     : '视频做好了（webm 格式）。小红书更认 mp4，建议用新版 Chrome / Edge 或 iPhone Safari 导出。');
 }
+$('coverBtn').onclick = async () => {
+  if (!S.song) return;
+  await loadVideoFonts();
+  const cv = el('canvas', { width: VW, height: VH });
+  drawCover(cv.getContext('2d'));
+  download(await new Promise(r => cv.toBlob(r, 'image/png')), S.name + '-封面.png');
+};
 $('vid').onclick = () => {
   if (vrec) { vrec.cancelled = true; return; }
   if (S.video) { download(S.video.blob, S.video.name); return; }
