@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>哼唱编曲台</title>
+<title>哼哼</title>
 <meta name="description" content="哼一句，就有一首歌：哼唱自动识别成音符，一键配和弦、贝斯、鼓，23 种音色随意换，导出视频发小红书。">
 <meta name="theme-color" content="#1D2A6B">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="哼唱编曲">
-<meta name="application-name" content="哼唱编曲">
+<meta name="apple-mobile-web-app-title" content="哼哼">
+<meta name="application-name" content="哼哼">
 <meta name="msapplication-TileColor" content="#1D2A6B">
 <meta name="msapplication-TileImage" content="icon-144.png?v=2">
 <link rel="manifest" href="manifest.json?v=2">
@@ -192,7 +192,7 @@ body.hasT{padding-bottom:96px}
     <div class="grow">
       <div class="kicker px">✦ Y-WORLD SOUND LAB ✦</div>
       <div class="wordmark">HUM STUDIO</div>
-      <h1>哼唱编曲台 <span>哼一句，就有一首歌</span></h1>
+      <h1>哼哼 <span>哼一句，就有一首歌</span></h1>
     </div>
     <div class="heroBtns">
       <button id="installBtn" class="ghost" hidden>装到主屏幕</button>
@@ -296,7 +296,7 @@ body.hasT{padding-bottom:96px}
 
 <dialog id="proDlg">
   <span class="badge">一次购买 · 终身使用</span>
-  <h3>解锁哼唱编曲台完整版</h3>
+  <h3>解锁哼哼完整版</h3>
   <ul>
     <li>全部 23 种音色：古筝、二胡、吉他、电钢琴、人声合唱…</li>
     <li>全部编曲风格：流行乐队、民谣、Lo-fi、国风、空灵</li>
@@ -319,12 +319,24 @@ body.hasT{padding-bottom:96px}
   </form>
 </dialog>
 
+<dialog id="memoDlg">
+  <h3>导入语音备忘录</h3>
+  <p class="muted">刚才从语音备忘录分享过来的录音已经准备好了。点下面的按钮，手机弹出「粘贴」时点一下它就行。</p>
+  <div class="err" id="memoErr"></div>
+  <div class="dlgBtns">
+    <button type="button" class="btn" id="memoClose">取消</button>
+    <button type="button" class="btn" id="memoV2">导入为副旋律</button>
+    <button type="button" class="btn primary" id="memoMain">导入</button>
+  </div>
+</dialog>
+
 <dialog id="appDlg">
   <h3>从 App 导入录音</h3>
   <p class="muted">支持 iPhone 语音备忘录、安卓录音机、微信里存下的录音，也支持手机拍的视频（会只取里面的声音）。可以一次选好几段，按顺序拼成一首。</p>
   <ol id="appSteps"></ol>
   <div class="dlgBtns">
     <button type="button" class="btn" id="appClose">取消</button>
+    <button type="button" class="btn" id="appPaste" hidden>粘贴语音备忘录</button>
     <button type="button" class="btn primary" id="appPick">从文件里选</button>
   </div>
 </dialog>
@@ -352,11 +364,13 @@ const getCtx = () => actx || (actx = new (window.AudioContext || window.webkitAu
 // iPhone 打开静音开关时，网页的 Web Audio 默认不出声。
 // iOS 17+：把声音声明成「播放音乐」类型就不受静音开关影响；更老的系统：同时放一段听不见的空白音频，把声音通道切过去。
 let silentEl = null;
-function setSession(type) { try { if (navigator.audioSession) navigator.audioSession.type = type; } catch (e) {} }
+// 只在真的需要换的时候才切：iPhone 每切一次声音模式，正在用的声音引擎都可能被打断
+function setSession(type) { try { const a = navigator.audioSession; if (a && a.type !== type) a.type = type; } catch (e) {} }
 function unmuteIOS(e) {
   // 点的是录音键、或者正在录音：不能切成「只播放」，否则 iPhone 会把麦克风关掉
   const t = e && e.target && e.target.closest ? e.target.closest('#rec,#rec2') : null;
-  setSession(t || rec || rec2 ? 'play-and-record' : 'playback');
+  if (t || rec || rec2) setSession('play-and-record');
+  else if (navigator.audioSession && navigator.audioSession.type !== 'play-and-record') setSession('playback');
   if (navigator.audioSession || !/iPhone|iPad|iPod/.test(navigator.userAgent)) return;
   if (!silentEl) {
     const n = 4410, b = new ArrayBuffer(44 + n * 2), dv = new DataView(b), w = (o, str) => [...str].forEach((ch, i) => dv.setUint8(o + i, ch.charCodeAt(0)));
@@ -546,14 +560,19 @@ $('rec').onclick = async () => {
 };
 
 // ---------- 从 App 导入：iPhone 语音备忘录、安卓录音机等 ----------
+// iPhone 的网页没法直接出现在语音备忘录的「分享」里，用「快捷指令」接一下：
+// 快捷指令把录音转成 Base64 文字放进剪贴板，再打开 ?memo=1；这里读剪贴板、还原成录音。
+// SHORTCUT_URL 填你在 iPhone「快捷指令」里分享出来的 iCloud 链接，买家点一下就能添加。
+const SHORTCUT_URL = '';
 $('appImport').onclick = () => {
   const steps = $('appSteps');
+  $('appPaste').hidden = !isIOS;
   if (isIOS) steps.innerHTML = `
-    <li><b>语音备忘录：</b>打开那条录音，点「···」→「存储到“文件”」（找不到就点「共享」→「存储到“文件”」），存到「我的 iPhone」。</li>
-    <li><b>其他录音 App：</b>点「分享 / 导出」→「存储到“文件”」。</li>
-    <li>回到这里点下面的「从文件里选」→「浏览」，找到刚存的录音就行。</li>`;
+    <li><b>语音备忘录（最快）：</b>${SHORTCUT_URL ? `第一次先<a href="${SHORTCUT_URL}" target="_blank" rel="noopener">点这里添加「哼哼」快捷指令</a>。` : '第一次先添加「哼哼」快捷指令（购买后发给你的链接里有）。'}以后在语音备忘录里点那条录音 →「共享」→「哼哼」，这里会自动打开，点「导入」就好。</li>
+    <li><b>或者：</b>在语音备忘录里点「···」→「存储到“文件”」，回到这里点「从文件里选」。</li>
+    <li><b>其他录音 App / 视频：</b>点「分享 / 导出」→「存储到“文件”」，再从文件里选。</li>`;
   else if (isAndroid) steps.innerHTML = `
-    <li><b>最快：</b>先把哼唱编曲台「装到主屏幕」。以后在录音机 App 里点「分享」→ 选「哼唱编曲」，会自动打开并识别。</li>
+    <li><b>最快：</b>先把哼哼「装到主屏幕」。以后在录音机 App 里点「分享」→ 选「哼哼」，会自动打开并识别。</li>
     <li><b>或者：</b>点下面「从文件里选」，在「Recordings / 录音」文件夹里找到那条录音。</li>`;
   else steps.innerHTML = `
     <li>把手机里的录音发到电脑（微信文件传输助手、AirDrop、数据线都可以）。</li>
@@ -561,6 +580,37 @@ $('appImport').onclick = () => {
   $('appDlg').showModal();
 };
 $('appPick').onclick = () => { $('appDlg').close(); $('file').click(); };
+$('appPaste').onclick = () => { $('appDlg').close(); openMemo(); };
+function openMemo() { $('memoErr').textContent = ''; $('memoDlg').showModal(); }
+async function importMemo(target) {
+  let text = '';
+  try { text = await navigator.clipboard.readText(); }
+  catch (e) { $('memoErr').textContent = '没能读到剪贴板（' + e.message + '）。再点一次，手机弹出「粘贴」时点它。'; return; }
+  const b64 = (text || '').replace(/^data:[^,]*,/, '').replace(/\s+/g, '');
+  if (b64.length < 200 || !/^[A-Za-z0-9+/=_-]+$/.test(b64)) { $('memoErr').textContent = '剪贴板里没有录音。回到语音备忘录，点那条录音 →「共享」→「哼哼」再试一次。'; return; }
+  let file;
+  try {
+    const bin = atob(b64.replace(/-/g, '+').replace(/_/g, '/')), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    file = new File([bytes], '语音备忘录.m4a', { type: 'audio/mp4' });
+  } catch (e) { $('memoErr').textContent = '剪贴板里的内容不是录音，再从语音备忘录分享一次试试。'; return; }
+  $('memoDlg').close();
+  try {
+    if (target === 'v2') { $('v2status').textContent = '正在读取语音备忘录…'; await loadV2(await decodeMedia(file), '语音备忘录'); }
+    else await loadFiles([file]);
+    try { await navigator.clipboard.writeText(''); } catch (e) {}   // 用完清掉，免得剪贴板里一直躺着一大段文字
+  } catch (e) { setStatus('这段录音读不了（' + e.message + '）。'); }
+}
+$('memoMain').onclick = () => importMemo('main');
+$('memoV2').onclick = () => importMemo('v2');
+$('memoClose').onclick = () => $('memoDlg').close();
+// 快捷指令打开的是 ?memo=1：一进来就弹出导入框
+function checkMemo() {
+  const q = new URLSearchParams(location.search);
+  if (!q.has('memo')) return;
+  history.replaceState(null, '', location.pathname);
+  openMemo();
+}
 $('appClose').onclick = () => $('appDlg').close();
 // 安卓从别的 App「分享」过来：service worker 把文件存进缓存，再带 ?shared=1 打开本页
 async function importShared() {
@@ -1625,18 +1675,16 @@ function play(from = S.cursor || 0) {
   stop();
   const token = S.playToken = (S.playToken || 0) + 1;
   let ctx = getCtx();
-  if (ctx.state === 'closed') { actx = null; ctx = getCtx(); }
-  if (ctx.state === 'running') { startPlay(ctx, from, token); return; }
-  // 手机上选完文件、切回来时声音引擎常被系统挂起：先试着恢复，0.6 秒还恢复不了就换一个新的
-  let done = false;
-  const go = c => { if (done || S.playToken !== token) return; done = true; startPlay(c, from, token); };
-  ctx.resume().then(() => go(ctx), () => {});
+  // iPhone 切声音模式、来电、切 App 回来后，声音引擎可能被打断（interrupted）或关掉了：
+  // 趁这次点按（iPhone 只允许在点按的这一刻新建能出声的引擎）马上换一个新的
+  if (ctx.state === 'closed' || ctx.state === 'interrupted') { if (ctx.state !== 'closed') ctx.close().catch(() => {}); actx = null; ctx = getCtx(); }
+  if (ctx.state !== 'running') ctx.resume().catch(() => {});
+  // 引擎暂停时 currentTime 不走，排好的声音会在它恢复的那一刻从头开始放，所以直接排
+  startPlay(ctx, from, token);
   setTimeout(() => {
-    if (done || S.playToken !== token) return;
-    if (ctx.state === 'running') { go(ctx); return; }
-    try { ctx.close(); } catch (e) {}
-    actx = null; const c = getCtx(); c.resume().catch(() => {}); go(c);
-  }, 600);
+    if (S.playToken === token && ctx.state !== 'running')
+      setStatus('声音被手机暂停了：点一下屏幕任意位置就会出声。如果还是没有，看看手机音量是不是开着。');
+  }, 1200);
 }
 function startPlay(ctx, from, token) {
   if (S.playToken !== token || !S.song) return;
@@ -2238,7 +2286,7 @@ function drawCover(g) {
   // 免费版底部带标识，完整版干净
   if (!PRO) {
     if (brandImg.complete) g.drawImage(brandImg, 80, 1220, 110, 110);
-    g.fillStyle = '#fff'; g.font = vfont(700, 44); g.fillText('哼唱编曲台', 214, 1268);
+    g.fillStyle = '#fff'; g.font = vfont(700, 44); g.fillText('哼哼', 214, 1268);
     g.fillStyle = '#C8D5F4'; g.font = vfont(500, 32); g.fillText('哼一句，就有一首歌', 214, 1316);
   }
 }
@@ -2285,7 +2333,7 @@ function drawVideoFrame(g, pos, an, len) {
   // 底部：免费版带角标，完整版干净无水印
   if (!PRO) {
     if (brandImg.complete) g.drawImage(brandImg, 70, 1310, 72, 72);
-    g.textAlign = 'left'; g.fillStyle = '#fff'; g.font = font(700, 34); g.fillText('哼唱编曲台', 160, 1345);
+    g.textAlign = 'left'; g.fillStyle = '#fff'; g.font = font(700, 34); g.fillText('哼哼', 160, 1345);
     g.fillStyle = '#C9C3F2'; g.font = font(500, 26); g.fillText('哼一句，就有一首歌 · 免费版制作', 160, 1382);
   }
   g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(0, VH - 10, VW, 10);
@@ -2367,7 +2415,7 @@ $('installBtn').onclick = async () => {
     $('installTitle').textContent = '装到主屏幕';
     steps.innerHTML = isAndroid
       ? '<li>点浏览器右上角的菜单（三个点）。</li><li>选「添加到主屏幕」或「安装应用」。</li><li>以后从桌面上的小Y图标打开，没网也能用。</li>'
-      : '<li>用 Chrome 或 Edge 打开本页。</li><li>点地址栏右边的安装图标，或菜单里的「安装哼唱编曲台」。</li><li>装好后像一个独立的小程序，可以固定到任务栏。</li>';
+      : '<li>用 Chrome 或 Edge 打开本页。</li><li>点地址栏右边的安装图标，或菜单里的「安装哼哼」。</li><li>装好后像一个独立的小程序，可以固定到任务栏。</li>';
   }
   $('installDlg').showModal();
 };
@@ -2383,7 +2431,7 @@ renderPresets();
 syncPro();
 window.addEventListener('resize', () => draw());
 draw();
-restore().then(importShared);
+restore().then(importShared).then(checkMemo);
 </script>
 </body>
 </html>
