@@ -171,6 +171,16 @@ dialog input[type=text]{font:20px "VT323",monospace;letter-spacing:.12em;width:1
 #seek{flex:1;width:auto;min-width:0;accent-color:var(--accent);height:28px}
 #tNow,#tLen{font-size:22px;min-width:44px;text-align:center}
 body.hasT{padding-bottom:96px}
+.v2box{margin-top:16px;padding:14px 16px;border:2.5px dashed var(--edge);border-radius:18px;background:var(--key)}
+.v2head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.v2head b{font-size:17px}
+#v2offWrap{margin-top:10px;flex-wrap:wrap}
+#v2offWrap input{width:76px}
+#v2status{margin:8px 0 0;min-height:1.2em}
+#voiceTabs{display:flex;align-items:center;gap:8px;margin-top:14px}
+#voiceTabs[hidden]{display:none}
+#voiceTabs .btn{padding:5px 14px;font-size:14px}
+#voiceTabs .btn.on{background:var(--ink);color:var(--card)}
 #vidPreview{width:100%;max-width:420px;border-radius:16px;border:2.5px solid var(--edge);margin-top:12px;display:none;background:#000}
 </style>
 </head>
@@ -211,6 +221,16 @@ body.hasT{padding-bottom:96px}
     <label class="ctl inline" id="appendWrap" hidden><input type="checkbox" id="appendMode">新录的 / 新选的接在上一段后面（多段拼成一首）</label>
     <div id="clips" hidden></div>
     <p id="status" class="muted">录音和视频都可以，一次能选好几段，会按顺序拼成一首；电脑上也可以直接把文件拖进页面。哼的时候用“嗯 / 啦 / 嘟”，一个音一个音分开哼，识别会更准。</p>
+    <div class="v2box">
+      <div class="v2head"><span class="shape square" style="width:26px;height:26px;font-size:18px">+</span><b>副旋律</b><span class="muted">（可选）再哼一段不一样的旋律，叠在主旋律上，同样能换乐器、留原声</span></div>
+      <div class="row">
+        <button id="rec2" class="btn blue">● 录副旋律</button>
+        <label class="btn">选择录音 / 视频<input type="file" id="file2" accept="audio/*,video/*,.m4a,.mp3,.wav,.ogg,.webm,.aac,.flac,.mp4,.mov" hidden></label>
+        <button id="clearV2" class="btn" hidden>去掉副旋律</button>
+      </div>
+      <label class="ctl inline" id="v2offWrap" hidden>和主旋律对齐：副旋律往后推 <input type="number" id="v2off" step="0.1" value="0"> 秒（负数 = 往前提）</label>
+      <p id="v2status" class="muted"></p>
+    </div>
   </section>
 
   <section class="card">
@@ -222,6 +242,7 @@ body.hasT{padding-bottom:96px}
       <label class="ctl">识别灵敏度<input type="range" id="sens" min="1" max="10" value="5"></label>
       <label class="ctl inline" title="一般不用开：识别已经会跟着你的音准走，开了反而可能把唱对的音改掉"><input type="checkbox" id="snapKey">把调外的音挪进调里</label>
     </div>
+    <div id="voiceTabs" hidden><span class="muted">正在编辑：</span><button class="btn on" data-v="0">主旋律</button><button class="btn" data-v="1">副旋律</button></div>
     <div id="rollWrap"><canvas id="roll"></canvas></div>
     <div id="noteBar">
       <b id="noteName"></b>
@@ -241,7 +262,8 @@ body.hasT{padding-bottom:96px}
       <label class="ctl">混响<input type="range" id="rev" min="0" max="80" value="28"></label>
     </div>
     <div class="mixBar">
-      <label class="blend"><span>原声</span><input type="range" id="blend" min="0" max="100" value="100"><span>乐器</span></label>
+      <label class="blend"><span id="bl1">原声</span><input type="range" id="blend" min="0" max="100" value="100"><span id="bl2">乐器</span></label>
+      <label class="blend" id="blend2Wrap" hidden><span>副·原声</span><input type="range" id="blend2" min="0" max="100" value="100"><span>副·乐器</span></label>
       <label class="blend"><span>伴奏</span><input type="range" id="accAmt" min="0" max="150" value="100"><span id="accVal">100%</span></label>
       <div class="muted">上面一条：左边是你自己的声音，右边是换成乐器后的旋律，中间就是两个混在一起。下面一条调伴奏（和声、铺底、贝斯、鼓…）整体多大声。松手后会自动回到这一段开头重放，方便对比前后。</div>
     </div>
@@ -342,6 +364,10 @@ function unmuteIOS() {
   silentEl.play().catch(() => {});
 }
 document.addEventListener('pointerdown', unmuteIOS, true);
+// 任何一次点按都顺手把被挂起的声音引擎叫醒；切回页面时也试一下
+const wakeCtx = () => { if (actx && actx.state !== 'running' && actx.state !== 'closed') actx.resume().catch(() => {}); };
+document.addEventListener('pointerdown', wakeCtx, true);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) wakeCtx(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden && silentEl) silentEl.pause(); });
 const S = { buf: null, frames: null, contour: [], raw: [], autoKey: null, song: null, play: null, name: 'my-song' };
 const setStatus = t => { $('status').textContent = t; };
@@ -549,6 +575,75 @@ $('demo').onclick = async () => {
   await loadBuffer(await oc.startRendering(), '示例-小星星');
 };
 
+// segment() 会顺手写 S.contour（主旋律的音高曲线），切副旋律时先存起来再放回去
+function segmentV2() {
+  const keep = S.contour;
+  S.v2.raw = segment(S.v2.frames, +$('sens').value);
+  S.v2.contour = S.contour; S.contour = keep;
+  S.v2.t0 = S.v2.raw.length ? Math.min(...S.v2.raw.map(n => n.start)) : 0;
+}
+async function loadV2(buf, name) {
+  stop();
+  S.v2 = { buf, name, frames: null, raw: [], contour: [], t0: 0, offset: S.v2 ? S.v2.offset || 0 : 0 };
+  idb('readwrite', st => st.put(packBuf(buf), 'audio:v2')).catch(() => {});
+  $('v2status').textContent = '正在识别副旋律…';
+  S.v2.frames = await detectPitch(await toMono16k(buf), p => { $('v2status').textContent = '正在识别副旋律… ' + Math.round(p * 100) + '%'; });
+  segmentV2();
+  if (!S.v2.raw.length) { $('v2status').textContent = '副旋律里没有识别到清晰的音高，换一段试试。'; S.v2 = null; syncV2UI(); return; }
+  // 自动加上「原声·副旋律」和「副旋律」两条音轨
+  if (!S.tracks.some(t => t.kind === 'orig2')) S.tracks.push(mkTrack('orig2', { vol: 90 }));
+  if (!S.tracks.some(t => t.kind === 'mel2')) S.tracks.push(mkTrack('mel2'));
+  syncV2UI(); renderTracks();
+  if (S.song) rebuild();
+  $('v2status').textContent = '副旋律：' + name + '（' + buf.duration.toFixed(1) + ' 秒，' + S.v2.raw.length + ' 个音）。卷帘里蓝色的就是它。';
+}
+function syncV2UI() {
+  const on = !!S.v2;
+  $('clearV2').hidden = !on; $('v2offWrap').hidden = !on; $('voiceTabs').hidden = !on; $('blend2Wrap').hidden = !on;
+  $('bl1').textContent = on ? '主·原声' : '原声'; $('bl2').textContent = on ? '主·乐器' : '乐器';
+  if (!on) S.ed = 0;
+  if (on) $('v2off').value = S.v2.offset || 0;
+  document.querySelectorAll('#voiceTabs .btn').forEach(b => b.classList.toggle('on', +b.dataset.v === (S.ed || 0)));
+}
+$('file2').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  $('v2status').textContent = '正在读取 ' + f.name + ' …';
+  try { await loadV2(await decodeMedia(f), f.name.replace(/\.[^.]+$/, '') || '副旋律'); }
+  catch (err) { $('v2status').textContent = '读不了「' + f.name + '」（' + err.message + '）。'; }
+};
+$('clearV2').onclick = () => {
+  S.v2 = null; S.sel = null;
+  S.tracks = S.tracks.filter(t => !KINDS[t.kind].voice2);
+  syncV2UI(); renderTracks(); if (S.song) rebuild();
+  $('v2status').textContent = '';
+};
+$('v2off').onchange = () => { if (!S.v2) return; S.v2.offset = +$('v2off').value || 0; rebuild(); restart(); };
+document.querySelectorAll('#voiceTabs .btn').forEach(b => b.onclick = () => { S.ed = +b.dataset.v; selectNote(null); syncV2UI(); draw(); });
+// 录副旋律：按一下开始，再按一下停止
+let rec2 = null;
+$('rec2').onclick = async () => {
+  if (rec2) { rec2.stop(); return; }
+  if (rec) return;
+  stop();
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true, autoGainControl: true } });
+    const chunks = [], t0 = performance.now();
+    rec2 = new MediaRecorder(stream);
+    rec2.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+    rec2.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      rec2 = null; $('rec2').textContent = '● 录副旋律'; $('rec2').classList.remove('recording');
+      try { await loadV2(await getCtx().decodeAudioData(await new Blob(chunks, { type: chunks[0] && chunks[0].type }).arrayBuffer()), '我的副旋律'); }
+      catch (err) { $('v2status').textContent = '录音解析失败：' + err.message; }
+    };
+    rec2.start();
+    $('rec2').classList.add('recording');
+    const tick = () => { if (!rec2) return; $('rec2').textContent = '■ 停止 ' + fmtT((performance.now() - t0) / 1000); setTimeout(tick, 250); };
+    tick();
+    $('v2status').textContent = '正在录副旋律，哼完再按一下停止。可以一边放主旋律一边跟着哼（戴耳机更好）。';
+  } catch (err) { rec2 = null; $('v2status').textContent = '无法使用麦克风（' + err.message + '）。'; }
+};
 async function loadBuffer(buf, name, clips) {
   stop();
   S.buf = buf; S.name = name; S.frames = null; S.clips = clips || [{ name, dur: buf.duration }]; S.cursor = 0;
@@ -758,6 +853,7 @@ function rebuildNotes(resetBpm) {
   if (!S.frames) return;
   S.raw = segment(S.frames, +$('sens').value);
   S.t0 = S.raw.length ? Math.min(...S.raw.map(n => n.start)) : 0;
+  if (S.v2 && S.v2.frames && !resetBpm) segmentV2();
   S.sel = null; $('noteBar').classList.remove('show');
   if (!S.raw.length) {
     S.song = null; draw(); enable(false);
@@ -778,20 +874,14 @@ function triad(key, deg) {
   return { deg, root, i3, i5, pcs: [root, (root + i3) % 12, (root + i5) % 12], name: NAMES[root] + (i3 === 3 ? (i5 === 6 ? '°' : 'm') : '') };
 }
 
-function arrange() {
-  const active = S.raw.filter(n => !n.off);
-  if (!active.length) return null;
-  const bpm = clamp(+$('bpm').value || 90, 40, 220), beat = 60 / bpm, div = +$('grid').value;
-  S.autoKey = detectKey(S.raw);
-  $('key').options[0].textContent = '自动（' + keyName(S.autoKey) + '）';
-  const key = currentKey(), scale = (key.mode === 'maj' ? MAJ_S : MIN_S).map(x => (x + key.pc) % 12);
-  const t0 = S.t0 != null ? S.t0 : active[0].start;
-  const all = S.raw.map((n, idx) => ({ idx, off: n.off, s: n.start - t0, e: n.end - t0, m: n.midi, touched: !!(n.src || n.edited) }));
+// 一条旋律线：录音里的时间换成歌曲时间、对齐到格子；同一时刻只能有一个音——
+// 音符重叠时，用户拖过 / 改过的音优先，被盖住的音让位（被截短或去掉）
+function melodyLine(raw, t0, beat, div) {
+  const all = raw.map((n, idx) => ({ idx, off: n.off, s: n.start - t0, e: n.end - t0, m: n.midi, touched: !!(n.src || n.edited) }));
   if (div > 0) {
     const g = beat / div;
     for (const n of all) { n.s = Math.round(n.s / g) * g; n.e = Math.max(n.s + g, Math.round(n.e / g) * g); }
   }
-  // 旋律只有一条线：音符重叠时，用户拖过 / 改过的音优先，被盖住的音让位（被截短或去掉）
   const mel = [];
   for (const n of all.filter(n => !n.off).sort((a, b) => a.s - b.s || b.touched - a.touched || (b.e - b.s) - (a.e - a.s))) {
     const last = mel[mel.length - 1];
@@ -804,6 +894,21 @@ function arrange() {
     }
     mel.push(n);
   }
+  return { all, mel };
+}
+// 副旋律录音里的第几秒，对应歌曲时间 0
+const v2Origin = () => S.v2.t0 - (S.v2.offset || 0);
+function arrange() {
+  const active = S.raw.filter(n => !n.off);
+  if (!active.length) return null;
+  const bpm = clamp(+$('bpm').value || 90, 40, 220), beat = 60 / bpm, div = +$('grid').value;
+  S.autoKey = detectKey(S.raw);
+  $('key').options[0].textContent = '自动（' + keyName(S.autoKey) + '）';
+  const key = currentKey(), scale = (key.mode === 'maj' ? MAJ_S : MIN_S).map(x => (x + key.pc) % 12);
+  const t0 = S.t0 != null ? S.t0 : active[0].start;
+  const { all, mel } = melodyLine(S.raw, t0, beat, div);
+  // 副旋律：自己的录音、自己的音符，放在同一条时间轴上（可以往后推 / 往前提对齐）
+  const v2 = S.v2 && S.v2.raw && S.v2.raw.some(n => !n.off) ? melodyLine(S.v2.raw, v2Origin(), beat, div) : { all: [], mel: [] };
   if ($('snapKey').checked) {
     mel.forEach((n, i) => {
       const pc = ((n.m % 12) + 12) % 12;
@@ -813,7 +918,7 @@ function arrange() {
       n.snapped = true;
     });
   }
-  const end = Math.max(...mel.map(n => n.e));
+  const end = Math.max(...mel.map(n => n.e), ...v2.mel.map(n => n.e));
   const barDur = 4 * beat, segDur = $('chordRate').value === '2' ? barDur / 2 : barDur;
   const nSeg = Math.max(1, Math.ceil((end - 1e-6) / segDur));
   const degs = key.mode === 'maj' ? [0, 1, 2, 3, 4, 5] : [0, 2, 3, 4, 5, 6];
@@ -840,7 +945,7 @@ function arrange() {
     chords.push({ ...best, t: a, d: segDur });
     prev = best;
   }
-  return { bpm, beat, barDur, key, t0, all, mel, chords, end: nSeg * segDur };
+  return { bpm, beat, barDur, key, t0, all, mel, all2: v2.all, mel2: v2.mel, chords, end: nSeg * segDur };
 }
 
 function rebuild() {
@@ -865,6 +970,8 @@ const KINDS = {
   orig:  { name: '原声哼唱', audio: true, color: '#e63b2e' },
   audio: { name: '导入音频', audio: true, color: '#6edcff' },
   mel:   { name: '主旋律', inst: 'piano', oct: 1, color: 'var(--accent)' },
+  orig2: { name: '原声·副旋律', audio: true, voice2: true, color: '#3cc8e8' },
+  mel2:  { name: '副旋律', inst: 'flute', oct: 1, voice2: true, color: '#1f44a8' },
   harm:  { name: '和声（三度）', inst: 'strings', color: '#ffc61a' },
   pad:   { name: '和弦铺底', inst: 'strings', color: '#8c7be0' },
   arp:   { name: '分解和弦', inst: 'piano', color: '#2bb5a0', pats: { eighth: '八分分解', quarter: '四分琶音', block: '柱式和弦' } },
@@ -914,7 +1021,7 @@ function thirdAbove(m, key) {
 function trackEvents(tr, s) {
   const ev = [], beat = s.beat, o = tr.oct * 12;
   const push = (m, t, d, v) => ev.push({ i: tr.inst, m: m + o, t, d, v });
-  if (tr.kind === 'mel') { for (const n of s.mel) push(n.m, n.s, n.e - n.s, 0.8); return ev; }
+  if (tr.kind === 'mel' || tr.kind === 'mel2') { for (const n of (tr.kind === 'mel' ? s.mel : s.mel2)) push(n.m, n.s, n.e - n.s, 0.8); return ev; }
   if (tr.kind === 'harm') { for (const n of s.mel) push(thirdAbove(n.m, s.key), n.s, n.e - n.s, 0.55); return ev; }
   if (tr.kind === 'drums') return drumEvents(tr.pat, s);
   for (const ch of s.chords) {
@@ -1320,7 +1427,7 @@ const VOICE_FX = {
     const cp = ctx.createDynamicsCompressor(); cp.threshold.value = -24; cp.ratio.value = 3;
     hp.connect(pres); pres.connect(air); air.connect(cp); cp.connect(out); return hp;
   } },
-  tune:     { name: '自动修音', wet: true, origOnly: true },
+  tune:     { name: '自动修音', wet: true, origOnly: true },   // 只对原声哼唱 / 原声·副旋律有效
   echo:     { name: '回声', wet: true, chain(ctx, out, s) {
     const dl = ctx.createDelay(2); dl.delayTime.value = Math.min(1.9, s.beat * 0.75);
     const fb = ctx.createGain(); fb.gain.value = 0.35;
@@ -1380,13 +1487,13 @@ function shiftBuf(buf, ratioAt, quietAt = () => false) {
   return out;
 }
 // 自动修音：每一帧把实际音高拉到这首歌里对应音符的音高（跑太远的帧不动，避免八度识别错误）
-function tuneRatio(s) {
-  const fr = S.frames, want = new Map(), nF = fr.t.length;
-  for (const n of s.mel) want.set(n.idx, n.m);
+function tuneRatio(fr, raw, melList) {
+  const want = new Map(), nF = fr.t.length;
+  for (const n of melList) want.set(n.idx, n.m);
   const r = new Float32Array(nF).fill(1), quiet = new Uint8Array(nF).fill(1);
   for (let i = 0; i < nF; i++) {
     const m = fr.midi[i]; if (isNaN(m)) continue;
-    const idx = S.raw.findIndex(n => { const [a, b] = n.src || [n.start, n.end]; return !n.off && fr.t[i] >= a && fr.t[i] <= b; });
+    const idx = raw.findIndex(n => { const [a, b] = n.src || [n.start, n.end]; return !n.off && fr.t[i] >= a && fr.t[i] <= b; });
     if (idx < 0 || !want.has(idx)) continue;
     const d = want.get(idx) - m;
     if (Math.abs(d) < 7) { r[i] = Math.pow(2, d / 12); quiet[i] = 0; }
@@ -1399,20 +1506,22 @@ function tuneRatio(s) {
 const fxCache = new WeakMap();
 function fxBuffer(tr, buf, s) {
   const fx = VOICE_FX[tr.fx];
-  const tune = tr.fx === 'tune' && tr.kind === 'orig' && S.frames;
+  const voice = tr.kind === 'orig' ? { fr: S.frames, raw: S.raw, mel: s.mel } : tr.kind === 'orig2' && S.v2 ? { fr: S.v2.frames, raw: S.v2.raw, mel: s.mel2 } : null;
+  const tune = tr.fx === 'tune' && voice && voice.fr;
   if (!fx || (!fx.shift && !tune)) return buf;
-  const key = tune ? 'tune:' + s.mel.map(n => n.idx + '=' + n.m).join(',') : 'shift:' + fx.shift;
+  const key = tune ? 'tune:' + voice.mel.map(n => n.idx + '=' + n.m).join(',') : 'shift:' + fx.shift;
   if (!fxCache.has(buf)) fxCache.set(buf, new Map());
   const m = fxCache.get(buf);
   if (!m.has(key)) {
     if (tune) for (const k of m.keys()) if (k.startsWith('tune:')) m.delete(k); // 改了音符就只留最新的修音结果
     const ratio = Math.pow(2, (fx.shift || 0) / 12);
-    m.set(key, tune ? shiftBuf(buf, ...tuneRatio(s)) : shiftBuf(buf, () => ratio));
+    m.set(key, tune ? shiftBuf(buf, ...tuneRatio(voice.fr, voice.raw, voice.mel)) : shiftBuf(buf, () => ratio));
   }
   return m.get(key);
 }
 
 function audioSpan(tr, s) {
+  if (tr.kind === 'orig2') return S.v2 && S.v2.buf ? { buf: S.v2.buf, base: S.v2.t0, start: S.v2.offset || 0 } : null;
   const buf = tr.kind === 'orig' ? S.buf : tr.buf;
   if (!buf) return null;
   return { buf, base: tr.kind === 'orig' ? s.t0 : 0, start: tr.offset || 0 };
@@ -1466,9 +1575,11 @@ const playPos = () => S.play ? getCtx().currentTime - S.play.at + S.play.from : 
 // 伴奏类跟着「伴奏」那条轴，导入的音频只看它自己的音量
 function trackGain(tr, on = audibleFn()) {
   if (!on(tr)) return 0;
-  const v = tr.vol / 100, b = +$('blend').value / 100;
+  const v = tr.vol / 100, b = +$('blend').value / 100, b2 = +$('blend2').value / 100;
   if (tr.kind === 'orig') return v * Math.cos(b * Math.PI / 2);
   if (tr.kind === 'mel') return v * Math.sin(b * Math.PI / 2);
+  if (tr.kind === 'orig2') return v * Math.cos(b2 * Math.PI / 2);
+  if (tr.kind === 'mel2') return v * Math.sin(b2 * Math.PI / 2);
   if (tr.kind === 'audio') return v;
   return v * $('accAmt').value / 100;
 }
@@ -1484,7 +1595,23 @@ function syncTransport(pos) {
 function play(from = S.cursor || 0) {
   if (!S.song) return;
   stop();
-  const ctx = getCtx(); ctx.resume();
+  const token = S.playToken = (S.playToken || 0) + 1;
+  let ctx = getCtx();
+  if (ctx.state === 'closed') { actx = null; ctx = getCtx(); }
+  if (ctx.state === 'running') { startPlay(ctx, from, token); return; }
+  // 手机上选完文件、切回来时声音引擎常被系统挂起：先试着恢复，0.6 秒还恢复不了就换一个新的
+  let done = false;
+  const go = c => { if (done || S.playToken !== token) return; done = true; startPlay(c, from, token); };
+  ctx.resume().then(() => go(ctx), () => {});
+  setTimeout(() => {
+    if (done || S.playToken !== token) return;
+    if (ctx.state === 'running') { go(ctx); return; }
+    try { ctx.close(); } catch (e) {}
+    actx = null; const c = getCtx(); c.resume().catch(() => {}); go(c);
+  }, 600);
+}
+function startPlay(ctx, from, token) {
+  if (S.playToken !== token || !S.song) return;
   const master = ctx.createGain(); master.connect(ctx.destination);
   const at = ctx.currentTime + 0.12, len = songLength(S.song);
   S.play = { master, at, from, ...renderSong(ctx, master, at, S.song, from) };
@@ -1501,6 +1628,7 @@ function play(from = S.cursor || 0) {
   syncTransport(from);
 }
 function stop() {
+  S.playToken = (S.playToken || 0) + 1;   // 还在等声音引擎恢复的那次播放也一起取消
   if (!S.play) return;
   const m = S.play.master; S.play = null;
   m.gain.setTargetAtTime(0, getCtx().currentTime, 0.02);
@@ -1634,8 +1762,8 @@ function draw(pos) {
     g.fillStyle = col.muted; g.textAlign = 'center'; g.fillText('还没有旋律 —— 先在上面上传、录音或点“用示例哼唱试试”', W / 2, H / 2);
     S.layout = null; return;
   }
-  const vis = s.all.filter(n => !n.drop);
-  let lo = Math.min(...vis.map(n => n.m)) - 2, hi = Math.max(...vis.map(n => n.m)) + 2;
+  const vis = s.all.filter(n => !n.drop), vis2 = (s.all2 || []).filter(n => !n.drop), both = vis.concat(vis2);
+  let lo = Math.min(...both.map(n => n.m)) - 2, hi = Math.max(...both.map(n => n.m)) + 2;
   if (hi - lo < 14) { const mid = (hi + lo) / 2; lo = Math.floor(mid - 7); hi = lo + 14; }
   if (lk) { lo = lk.lo; hi = lk.hi; }
   const top = 28, rowH = (H - top - 6) / (hi - lo + 1), y = m => top + (hi - m) * rowH;
@@ -1651,27 +1779,41 @@ function draw(pos) {
     g.beginPath(); g.moveTo(x, top - 4); g.lineTo(x, H); g.stroke();
   }
   g.globalAlpha = 1;
+  // 正在编辑的声部：画出它的音高曲线；另一个声部画淡一点
+  const ed2 = S.ed === 1 && S.v2;
   g.fillStyle = col.muted;
-  for (const [t, m] of S.contour) { const x = (t - s.t0) * pps; if (x >= 0 && x <= W) g.fillRect(x - 1, y(m) + rowH / 2 - 1, 2, 2); }
-  for (const n of vis) {
-    const x = n.s * pps, w = Math.max(3, (n.e - n.s) * pps - 2), yy = y(n.m) + 1, h = Math.max(4, rowH - 2);
-    const sel = n.idx === S.sel;
-    if (n.off) { g.setLineDash([3, 3]); g.strokeStyle = sel ? col.ink : col.muted; g.lineWidth = sel ? 2 : 1; g.strokeRect(x + 0.5, yy + 0.5, w, h); g.setLineDash([]); g.lineWidth = 1; continue; }
-    g.fillStyle = n.snapped ? col.acc2 : col.acc;
-    g.beginPath(); g.roundRect ? g.roundRect(x, yy, w, h, 3) : g.rect(x, yy, w, h); g.fill();
-    if (sel) { g.strokeStyle = col.ink; g.lineWidth = 2.5; g.stroke(); g.lineWidth = 1; }
-    if (w > 26 && h >= 11) { g.fillStyle = '#fff'; g.textAlign = 'left'; g.fillText(NAMES[((n.m % 12) + 12) % 12] + (Math.floor(n.m / 12) - 1), x + 4, yy + h / 2 + 4); }
-  }
+  const ctr = ed2 ? (S.v2.contour || []) : S.contour, ctr0 = ed2 ? v2Origin() : s.t0;
+  for (const [t, m] of ctr) { const x = (t - ctr0) * pps; if (x >= 0 && x <= W) g.fillRect(x - 1, y(m) + rowH / 2 - 1, 2, 2); }
+  const paint = (list, color, active) => {
+    g.globalAlpha = active ? 1 : 0.35;
+    for (const n of list) {
+      const x = n.s * pps, w = Math.max(3, (n.e - n.s) * pps - 2), yy = y(n.m) + 1, h = Math.max(4, rowH - 2);
+      const sel = active && n.idx === S.sel;
+      if (n.off) { if (!active) continue; g.setLineDash([3, 3]); g.strokeStyle = sel ? col.ink : col.muted; g.lineWidth = sel ? 2 : 1; g.strokeRect(x + 0.5, yy + 0.5, w, h); g.setLineDash([]); g.lineWidth = 1; continue; }
+      g.fillStyle = n.snapped ? col.acc2 : color;
+      g.beginPath(); g.roundRect ? g.roundRect(x, yy, w, h, 3) : g.rect(x, yy, w, h); g.fill();
+      if (sel) { g.strokeStyle = col.ink; g.lineWidth = 2.5; g.stroke(); g.lineWidth = 1; }
+      if (active && w > 26 && h >= 11) { g.fillStyle = '#fff'; g.textAlign = 'left'; g.fillText(NAMES[((n.m % 12) + 12) % 12] + (Math.floor(n.m / 12) - 1), x + 4, yy + h / 2 + 4); }
+    }
+    g.globalAlpha = 1;
+  };
+  if (ed2) { paint(vis, col.acc, false); paint(vis2, '#1F44A8', true); }
+  else { paint(vis2, '#1F44A8', false); paint(vis, col.acc, true); }
   if (pos != null) { g.strokeStyle = col.ink; g.lineWidth = 1.5; g.beginPath(); g.moveTo(pos * pps, 0); g.lineTo(pos * pps, H); g.stroke(); g.lineWidth = 1; }
 }
 
 // ---------- 拖动音符：上下改音高，左右改位置，拖右边缘改长短 ----------
+// 当前正在编辑的声部（主旋律 / 副旋律）
+function V() {
+  if (S.ed === 1 && S.v2 && S.song) return { raw: S.v2.raw, all: S.song.all2 || [], mel: S.song.mel2 || [], t0: v2Origin(), kind: 'mel2' };
+  return { raw: S.raw, all: S.song ? S.song.all : [], mel: S.song ? S.song.mel : [], t0: S.t0, kind: 'mel' };
+}
 function hitNote(e) {
   const s = S.song, L = S.layout; if (!s || !L) return null;
   const r = $('roll').getBoundingClientRect(), x = e.clientX - r.left, yv = e.clientY - r.top;
   const t = x / L.pps, m = L.hi - Math.floor((yv - L.top) / L.rowH);
   // 手指点不准：先找正好点中的，找不到就找同一时刻上下一格内的
-  const near = s.all.filter(n => !n.drop && t >= n.s - 0.04 && t <= n.e + 0.04);
+  const near = V().all.filter(n => !n.drop && t >= n.s - 0.04 && t <= n.e + 0.04);
   const n = near.find(n => n.m === m) || near.find(n => Math.abs(n.m - m) <= 1);
   return n && { n, edge: n.e * L.pps - x < 12 && (n.e - n.s) * L.pps > 24 };
 }
@@ -1688,7 +1830,7 @@ roll.addEventListener('pointerdown', e => {
   if (!h) { selectNote(null); return; }
   // 触屏上先点一下选中、再拖，这样没选中音符时手指还能左右滑动卷帘
   if (e.pointerType === 'touch' && h.n.idx !== S.sel) { selectNote(h.n.idx); return; }
-  const r = S.raw[h.n.idx], L = S.layout;
+  const r = V().raw[h.n.idx], L = S.layout;
   drag = { idx: h.n.idx, mode: h.edge ? 'len' : 'move', x0: e.clientX, y0: e.clientY, start: r.start, end: r.end, midi: r.midi, moved: false,
     lock: { pps: L.pps, lo: L.lo, hi: L.hi } };
   try { roll.setPointerCapture(e.pointerId); } catch (err) {}
@@ -1700,11 +1842,11 @@ roll.addEventListener('pointermove', e => {
   if (!drag.moved && Math.hypot(dx, dy) < 5) return;
   if (!drag.moved) { drag.moved = true; stop(); S.dragLock = drag.lock; roll.style.cursor = drag.mode === 'len' ? 'ew-resize' : 'grabbing'; }
   const L = S.layout, div = +$('grid').value, step = div > 0 ? S.song.beat / div : 0.01;
-  const r = S.raw[drag.idx];
+  const r = V().raw[drag.idx];
   if (!r.src) r.src = [drag.start, drag.end];
   let dt = Math.round(dx / drag.lock.pps / step) * step;
   if (drag.mode === 'move') {
-    dt = Math.max(dt, S.t0 - drag.start);
+    dt = Math.max(dt, V().t0 - drag.start);
     const m = clamp(drag.midi - Math.round(dy / L.rowH), drag.lock.lo, drag.lock.hi);
     if (m !== r.midi) r.edited = true;
     r.start = drag.start + dt; r.end = drag.end + dt; r.midi = m;
@@ -1716,7 +1858,7 @@ function endDrag() {
   const d = drag; drag = null; S.dragLock = null; roll.style.cursor = 'default';
   if (!d.moved) return;
   rebuild(); selectNote(d.idx);
-  const n = S.song && S.song.mel.find(a => a.idx === d.idx), tr = S.tracks.find(t => t.kind === 'mel');
+  const n = V().mel.find(a => a.idx === d.idx), tr = S.tracks.find(t => t.kind === V().kind);
   if (n && tr) { const ctx = getCtx(); ctx.resume(); INST[tr.inst](ctx, ctx.destination, n.m + tr.oct * 12, ctx.currentTime + 0.02, 0.35, 0.6); }
 }
 roll.addEventListener('pointerup', endDrag);
@@ -1729,7 +1871,7 @@ function selectNote(idx) {
   const bar = $('noteBar');
   bar.classList.toggle('show', idx != null);
   if (idx != null) {
-    const r = S.raw[idx], n = S.song && S.song.all.find(a => a.idx === idx), m = n ? n.m : r.midi;
+    const r = V().raw[idx], n = V().all.find(a => a.idx === idx), m = n ? n.m : r.midi;
     $('noteName').textContent = '选中 ' + NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
     $('noteOff').textContent = r.off ? '恢复' : '删除';
   }
@@ -1737,10 +1879,10 @@ function selectNote(idx) {
 }
 function editNote(fn) {
   if (S.sel == null) return;
-  fn(S.raw[S.sel]);
+  fn(V().raw[S.sel]);
   rebuild(); selectNote(S.sel);
   // 改完音高顺便试听这个音
-  const n = S.song && S.song.mel.find(a => a.idx === S.sel), tr = S.tracks.find(t => t.kind === 'mel');
+  const n = V().mel.find(a => a.idx === S.sel), tr = S.tracks.find(t => t.kind === V().kind);
   if (n && tr && !S.play) { const ctx = getCtx(); ctx.resume(); INST[tr.inst](ctx, ctx.destination, n.m + tr.oct * 12, ctx.currentTime + 0.02, 0.35, 0.6); }
 }
 $('noteUp').onclick = () => editNote(r => { r.midi++; r.edited = true; });
@@ -1777,7 +1919,7 @@ function el(tag, props = {}, kids = []) {
 // ---------- 免费版 / 完整版 ----------
 const FREE_INST = new Set(['piano', 'box', 'guitar', 'chime', 'flute', 'bird']);
 const FREE_PRESETS = new Set(['piano', 'none']);
-const FREE_KINDS = new Set(['mel', 'pad', 'arp', 'bass', 'orig']);
+const FREE_KINDS = new Set(['mel', 'pad', 'arp', 'bass', 'orig', 'mel2', 'orig2']);
 const FREE_TRACKS = 5, PRO_TRACKS = 15;
 const PRO_STORE = 'hum.unlock';
 // 小红书「HumHub」星星密钥商品页（换链接只改这一行；留空就不显示购买按钮）
@@ -1842,11 +1984,13 @@ function renderTracks() {
     if (K.pats) row.append(makeSelect(Object.entries(K.pats).map(([v, t]) => ({ v, t })), tr.pat, set('pat')));
     if (!K.audio && !K.drums) row.append(makeSelect([-2, -1, 0, 1, 2].map(v => ({ v, t: v ? (v > 0 ? '高' : '低') + Math.abs(v) + ' 个八度' : '原八度' })), tr.oct, v => set('oct')(+v)));
     if (K.audio) {
-      const opts = Object.entries(VOICE_FX).filter(([k, f]) => !f.origOnly || tr.kind === 'orig').map(([v, f]) => ({ v, t: '声音：' + f.name }));
+      const opts = Object.entries(VOICE_FX).filter(([k, f]) => !f.origOnly || tr.kind === 'orig' || tr.kind === 'orig2').map(([v, f]) => ({ v, t: '声音：' + f.name }));
       row.append(makeSelect(opts, tr.fx || 'none', set('fx'), v => FREE_FX.has(v), '这个声音效果在完整版里'));
-      const off = el('input', { type: 'number', step: 0.05, value: tr.offset, title: '对齐偏移（秒）：正数 = 往后推，负数 = 往前提' });
-      off.onchange = () => { tr.offset = +off.value || 0; restart(); };
-      row.append(el('label', { className: 'tvol', title: off.title }, ['偏移(秒)', off]));
+      if (tr.kind !== 'orig2') {   // 副旋律的对齐在上面的「副旋律」面板里调
+        const off = el('input', { type: 'number', step: 0.05, value: tr.offset, title: '对齐偏移（秒）：正数 = 往后推，负数 = 往前提' });
+        off.onchange = () => { tr.offset = +off.value || 0; restart(); };
+        row.append(el('label', { className: 'tvol', title: off.title }, ['偏移(秒)', off]));
+      }
     }
     const vol = el('input', { type: 'range', min: 0, max: 150, value: tr.vol });
     vol.oninput = () => { tr.vol = +vol.value; applyGains(); autosave(); };
@@ -1868,18 +2012,20 @@ function renderTracks() {
 const TRACK_LIMIT_TEXT = FREE_TRACKS + ' 个音轨任你选，解锁进阶，最高可添加 ' + PRO_TRACKS + ' 个';
 const trackLimit = () => PRO ? PRO_TRACKS : FREE_TRACKS;
 function renderAddMenu() {
-  const a = $('addTrack'), n = S.tracks.length, full = n >= trackLimit();
+  const a = $('addTrack'), n = trackCount(), full = n >= trackLimit();
   a.innerHTML = '';
   a.append(new Option('＋ 添加音轨（' + n + ' / ' + trackLimit() + '）' + (full ? (PRO ? ' 已到上限' : ' · 解锁进阶最高 ' + PRO_TRACKS + ' 个 🔒') : ''), ''));
   for (const k of ['mel', 'harm', 'pad', 'arp', 'strum', 'bass', 'drums']) a.append(new Option(lockMark(FREE_KINDS.has(k)) + KINDS[k].name + (k === 'mel' ? '（再叠一种音色）' : ''), k));
+  if (S.v2) a.append(new Option('副旋律（再叠一种音色）', 'mel2'));
   const o = new Option('原声哼唱' + (S.tracks.some(t => t.kind === 'orig') ? '（已在列表里）' : ''), 'orig');
   o.disabled = S.tracks.some(t => t.kind === 'orig');
   a.append(o, new Option(lockMark(false) + '导入音频 / 视频（人声、伴奏，可以多选）…', 'file'));
   a.value = '';
 }
 // 加音轨前检查数量：免费 5 个，解锁后最多 15 个
+const trackCount = () => S.tracks.filter(t => !KINDS[t.kind].voice2).length;
 function roomFor(k = 1) {
-  if (S.tracks.length + k <= trackLimit()) return true;
+  if (trackCount() + k <= trackLimit()) return true;
   if (!PRO) return needPro(TRACK_LIMIT_TEXT);
   setStatus('最多 ' + PRO_TRACKS + ' 个音轨，先删掉一个再加吧。');
   return false;
@@ -1888,7 +2034,7 @@ $('addTrack').onchange = () => {
   const k = $('addTrack').value; $('addTrack').value = '';
   if (!k) return;
   if (!FREE_KINDS.has(k) && !needPro('「' + (k === 'file' ? '导入音频 / 视频' : KINDS[k].name) + '」音轨在完整版里')) return;
-  if (!roomFor()) return;
+  if (!KINDS[k] || !KINDS[k].voice2) { if (!roomFor()) return; }
   if (k === 'file') { $('audioFile').click(); return; }
   S.tracks.push(mkTrack(k, k === 'mel' ? { inst: 'flute', vol: 70 } : {}));
   markCustom(); renderTracks(); restart();
@@ -1930,6 +2076,12 @@ $('blend').oninput = () => {
   }
   applyGains(); autosave();
 };
+$('blend2').oninput = () => {
+  const o = S.tracks.find(t => t.kind === 'orig2');
+  if (o && o.mute && +$('blend2').value < 100) { o.mute = false; renderTracks(); }
+  applyGains(); autosave();
+};
+$('blend2').addEventListener('change', () => restart());
 $('accAmt').oninput = () => { $('accVal').textContent = $('accAmt').value + '%'; applyGains(); autosave(); };
 for (const id of ['blend', 'accAmt', 'rev']) $(id).addEventListener('change', () => restart());
 $('rev').oninput = () => { if (S.play) S.play.rg.gain.setTargetAtTime($('rev').value / 100, getCtx().currentTime, 0.05); autosave(); };
@@ -1952,7 +2104,7 @@ function unpackBuf(p) {
   p.ch.forEach((d, i) => b.copyToChannel(d, i));
   return b;
 }
-const SETTINGS = ['bpm', 'grid', 'key', 'sens', 'chordRate', 'rev', 'style', 'blend', 'accAmt'];
+const SETTINGS = ['bpm', 'grid', 'key', 'sens', 'chordRate', 'rev', 'style', 'blend', 'accAmt', 'blend2'];
 let saveTimer = null, restoring = false;
 function autosave() {
   // 作品改了，之前录好的视频就过时了
@@ -1963,10 +2115,11 @@ async function saveNow() {
   const settings = { snapKey: $('snapKey').checked };
   for (const id of SETTINGS) settings[id] = $(id).value;
   const tracks = S.tracks.map(t => { const c = { ...t }; delete c.buf; return c; });
-  const keep = new Set(['audio:orig', ...tracks.filter(t => t.kind === 'audio').map(t => 'audio:' + t.id)]);
+  const keep = new Set(['audio:orig', ...(S.v2 ? ['audio:v2'] : []), ...tracks.filter(t => t.kind === 'audio').map(t => 'audio:' + t.id)]);
+  const v2 = S.v2 ? { name: S.v2.name, frames: S.v2.frames, raw: S.v2.raw, contour: S.v2.contour, t0: S.v2.t0, offset: S.v2.offset || 0 } : null;
   try {
     await idb('readwrite', st => {
-      st.put({ v: 3, name: S.name, clips: S.clips, frames: S.frames, raw: S.raw, contour: S.contour, t0: S.t0, settings, tracks }, 'last');
+      st.put({ v: 3, name: S.name, clips: S.clips, frames: S.frames, raw: S.raw, contour: S.contour, t0: S.t0, v2, settings, tracks }, 'last');
       const ks = st.getAllKeys();
       ks.onsuccess = () => ks.result.forEach(k => { if (String(k).startsWith('audio:') && !keep.has(k)) st.delete(k); });
     });
@@ -1991,6 +2144,10 @@ async function restore() {
       S.tracks.push(t);
     }
     nextId = Math.max(nextId, ...S.tracks.map(t => t.id + 1));
+    if (p.v2) { const b = await idb('readonly', st => st.get('audio:v2')); if (b) S.v2 = { ...p.v2, buf: unpackBuf(b) }; }
+    if (!S.v2) S.tracks = S.tracks.filter(t => !KINDS[t.kind].voice2);
+    syncV2UI();
+    if (S.v2) $('v2status').textContent = '副旋律：' + S.v2.name + '（' + S.v2.raw.length + ' 个音）。卷帘里蓝色的就是它。';
     renderTracks(); rebuild();
     setStatus('已恢复上次的作品「' + S.name + '」。想做新的，就上传或录一段新的哼唱。');
   } catch (e) {} finally { restoring = false; }
