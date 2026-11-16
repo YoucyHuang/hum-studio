@@ -209,7 +209,7 @@ body.hasT{padding-bottom:96px}
       <div class="recText">
         <b id="recLabel">按一下，开始录音</b>
         <span id="recTime" class="px"></span>
-        <div class="muted">对着手机哼一段，哼完再按一下就停</div>
+        <div class="muted" id="recHint">对着手机哼一段，哼完再按一下就停</div>
         <canvas id="recMeter" width="240" height="34"></canvas>
       </div>
     </div>
@@ -352,8 +352,11 @@ const getCtx = () => actx || (actx = new (window.AudioContext || window.webkitAu
 // iPhone 打开静音开关时，网页的 Web Audio 默认不出声。
 // iOS 17+：把声音声明成「播放音乐」类型就不受静音开关影响；更老的系统：同时放一段听不见的空白音频，把声音通道切过去。
 let silentEl = null;
-function unmuteIOS() {
-  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+function setSession(type) { try { if (navigator.audioSession) navigator.audioSession.type = type; } catch (e) {} }
+function unmuteIOS(e) {
+  // 点的是录音键、或者正在录音：不能切成「只播放」，否则 iPhone 会把麦克风关掉
+  const t = e && e.target && e.target.closest ? e.target.closest('#rec,#rec2') : null;
+  setSession(t || rec || rec2 ? 'play-and-record' : 'playback');
   if (navigator.audioSession || !/iPhone|iPad|iPod/.test(navigator.userAgent)) return;
   if (!silentEl) {
     const n = 4410, b = new ArrayBuffer(44 + n * 2), dv = new DataView(b), w = (o, str) => [...str].forEach((ch, i) => dv.setUint8(o + i, ch.charCodeAt(0)));
@@ -469,19 +472,42 @@ document.addEventListener('drop', e => {
 });
 
 // ---------- 一键录音：大红按钮，显示时间和音量 ----------
-let rec = null;
+let rec = null, rec2 = null;
+// 录音前先检查能不能录；不能录就返回一句告诉用户怎么办的话
+function micProblem() {
+  if (inApp) return '在小红书 / 微信里打开没法录音：点右上角「···」→「在浏览器中打开」，或者先用手机自带的录音 App 录好，再点「从 App 导入」。';
+  if (!window.isSecureContext) return '这个网址不能用麦克风，请用 https 开头的网址打开。';
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) return '这个浏览器不支持录音（iPhone 请用 Safari，安卓请用 Chrome），也可以先用录音 App 录好，再点「从 App 导入」。';
+  return '';
+}
+function micError(err) {
+  if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError'))
+    return isIOS ? '麦克风被拒绝了：打开「设置」→「Safari」→「麦克风」改成「询问」或「允许」，再回来刷新页面。' : '麦克风被拒绝了：点地址栏左边的小锁 / 设置图标，把麦克风改成「允许」，再刷新页面。';
+  if (err && err.name === 'NotFoundError') return '没找到麦克风，检查一下耳机或麦克风有没有插好。';
+  if (err && err.name === 'NotReadableError') return '麦克风被别的 App 占着（比如正在通话、录音），关掉它再试。';
+  return '没能打开麦克风（' + (err && err.message || err) + '）。可以先用录音 App 录好，再点「从 App 导入」。';
+}
+async function openMic() {
+  setSession('play-and-record');
+  return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true, autoGainControl: true } });
+}
 function setRecUI(on, txt) {
   $('rec').classList.toggle('on', on);
   $('rec').setAttribute('aria-label', on ? '停止录音' : '开始录音');
   $('recLabel').textContent = txt;
   $('recMeter').classList.toggle('show', on);
+  if (on) $('recHint').textContent = '对着手机哼一段，哼完再按一下就停';
   if (!on) $('recTime').textContent = '';
 }
 $('rec').onclick = async () => {
   if (rec) { rec.stop(); return; }
+  if (rec2) return;
   stop();
+  const bad = micProblem();
+  if (bad) { $('recLabel').textContent = '现在录不了'; $('recHint').textContent = bad; setStatus(bad); return; }
+  $('recLabel').textContent = '正在打开麦克风…'; $('recHint').textContent = '手机问要不要允许麦克风时，点「允许」。';
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true, autoGainControl: true } });
+    const stream = await openMic();
     const chunks = [], ctx = getCtx(); ctx.resume();
     const an = ctx.createAnalyser(); an.fftSize = 512;
     const mic = ctx.createMediaStreamSource(stream); mic.connect(an);
@@ -489,7 +515,7 @@ $('rec').onclick = async () => {
     rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
     rec.onstop = async () => {
       stream.getTracks().forEach(t => t.stop()); mic.disconnect();
-      rec = null; setRecUI(false, '按一下，开始录音');
+      rec = null; setRecUI(false, '按一下，开始录音'); setSession('playback');
       try {
         const blob = new Blob(chunks, { type: chunks[0] && chunks[0].type });
         const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
@@ -516,7 +542,7 @@ $('rec').onclick = async () => {
       requestAnimationFrame(tick);
     };
     tick();
-  } catch (err) { rec = null; setRecUI(false, '按一下，开始录音'); setStatus('无法使用麦克风（' + err.message + '）。可以在浏览器设置里允许麦克风，或者用下面的「选择录音文件」。'); }
+  } catch (err) { rec = null; setRecUI(false, '现在录不了'); const m = micError(err); $('recHint').textContent = m; setStatus(m); setSession('playback'); }
 };
 
 // ---------- 从 App 导入：iPhone 语音备忘录、安卓录音机等 ----------
@@ -621,19 +647,21 @@ $('clearV2').onclick = () => {
 $('v2off').onchange = () => { if (!S.v2) return; S.v2.offset = +$('v2off').value || 0; rebuild(); restart(); };
 document.querySelectorAll('#voiceTabs .btn').forEach(b => b.onclick = () => { S.ed = +b.dataset.v; selectNote(null); syncV2UI(); draw(); });
 // 录副旋律：按一下开始，再按一下停止
-let rec2 = null;
 $('rec2').onclick = async () => {
   if (rec2) { rec2.stop(); return; }
   if (rec) return;
   stop();
+  const bad = micProblem();
+  if (bad) { $('v2status').textContent = bad; return; }
+  $('v2status').textContent = '正在打开麦克风…（手机问要不要允许时，点「允许」）';
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true, autoGainControl: true } });
+    const stream = await openMic();
     const chunks = [], t0 = performance.now();
     rec2 = new MediaRecorder(stream);
     rec2.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
     rec2.onstop = async () => {
       stream.getTracks().forEach(t => t.stop());
-      rec2 = null; $('rec2').textContent = '● 录副旋律'; $('rec2').classList.remove('recording');
+      rec2 = null; $('rec2').textContent = '● 录副旋律'; $('rec2').classList.remove('recording'); setSession('playback');
       try { await loadV2(await getCtx().decodeAudioData(await new Blob(chunks, { type: chunks[0] && chunks[0].type }).arrayBuffer()), '我的副旋律'); }
       catch (err) { $('v2status').textContent = '录音解析失败：' + err.message; }
     };
@@ -642,7 +670,7 @@ $('rec2').onclick = async () => {
     const tick = () => { if (!rec2) return; $('rec2').textContent = '■ 停止 ' + fmtT((performance.now() - t0) / 1000); setTimeout(tick, 250); };
     tick();
     $('v2status').textContent = '正在录副旋律，哼完再按一下停止。可以一边放主旋律一边跟着哼（戴耳机更好）。';
-  } catch (err) { rec2 = null; $('v2status').textContent = '无法使用麦克风（' + err.message + '）。'; }
+  } catch (err) { rec2 = null; $('v2status').textContent = micError(err); setSession('playback'); }
 };
 async function loadBuffer(buf, name, clips) {
   stop();
