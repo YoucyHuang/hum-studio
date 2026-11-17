@@ -336,7 +336,7 @@ body.hasT{padding-bottom:96px}
   </ul>
   <p class="muted" id="proWhy"></p>
   <div class="buyRow">
-    <span class="muted">还没有密钥？在小红书「HumHub」购买，付款后自动发送密钥。</span>
+    <span class="muted">还没有密钥？在小红书店铺「ADHD管家」买「哼哼」，付款后自动发送密钥。</span>
     <a class="ghost" id="buyLink" target="_blank" rel="noopener">去小红书购买 →</a>
   </div>
   <form id="proForm">
@@ -2149,7 +2149,7 @@ const FREE_PRESETS = new Set(['piano', 'none']);
 const FREE_KINDS = new Set(['mel', 'pad', 'arp', 'bass', 'orig', 'mel2', 'orig2']);
 const FREE_TRACKS = 5, PRO_TRACKS = 15;
 const PRO_STORE = 'hum.unlock';
-// 小红书「HumHub」商品页（换链接只改这一行）。还没上架时，按钮改成「复制店名去小红书搜」
+// 小红书店铺「ADHD管家」里「哼哼」的商品页（换链接只改这一行）。还没上架时，按钮改成「复制店名去小红书搜」
 const SHOP_URL = '';
 const PRICE_ONE = 2, PRICE_ALL = 20;
 if (SHOP_URL) $('buyLink').href = SHOP_URL;
@@ -2158,8 +2158,8 @@ else {
   $('buyLink').removeAttribute('href');
   $('buyLink').onclick = async e => {
     e.preventDefault();
-    try { await navigator.clipboard.writeText('HumHub 哼哼'); $('proErr').textContent = '已复制「HumHub 哼哼」✓ 打开小红书，粘贴到搜索框就能找到。'; }
-    catch (err) { $('proErr').textContent = '打开小红书，搜「HumHub 哼哼」就能找到。'; }
+    try { await navigator.clipboard.writeText('ADHD管家'); $('proErr').textContent = '已复制店名「ADHD管家」✓ 打开小红书搜索，进店就能找到「哼哼」。'; }
+    catch (err) { $('proErr').textContent = '打开小红书搜「ADHD管家」，进店就能找到「哼哼」。'; }
   };
 }
 let PRO = (() => { try { return HUM_KEY_HASHES.includes(localStorage.getItem(PRO_STORE)); } catch (e) { return false; } })();
