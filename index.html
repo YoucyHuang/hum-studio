@@ -260,6 +260,7 @@ body.hasT{padding-bottom:96px}
       <label class="ctl">一键编曲风格<select id="style"></select></label>
       <label class="ctl">和弦变化<select id="chordRate"><option value="1" selected>每小节一个</option><option value="2">每两拍一个</option></select></label>
       <label class="ctl">混响<input type="range" id="rev" min="0" max="80" value="28"></label>
+      <label class="ctl" title="往右：音和音之间的空隙补满，长笛、弦乐这类乐器一口气滑过去，像唱歌一样">旋律连贯<input type="range" id="legato" min="0" max="100" value="70"></label>
     </div>
     <div class="mixBar">
       <label class="blend"><span id="bl1">原声</span><input type="range" id="blend" min="0" max="100" value="100"><span id="bl2">乐器</span></label>
@@ -1096,11 +1097,32 @@ function thirdAbove(m, key) {
   return base + (tgt - pc(base) + 12) % 12;
 }
 
+// 旋律连贯：识别出的音之间常有小空隙（换音、换气、滑音的地方，再加上对齐格子时结尾被裁短），
+// 一个个单独起音收音听起来很生硬。这里把不太长的空隙补满；长音乐器连着的音合成「一句」，一口气滑过去。
+function melodyEvents(list, inst, v, s, mapPitch = m => m) {
+  const leg = +$('legato').value / 100, maxFill = leg * s.beat * 1.2;
+  const notes = list.map((n, i) => {
+    const next = list[i + 1];
+    let e = n.e;
+    if (next && next.s - n.e > 0 && next.s - n.e <= maxFill + 1e-6) e = next.s;     // 空隙补满
+    else if (leg > 0 && !next) e = n.e + leg * s.beat * 0.5;                          // 最后一个音稍微拖长一点再收
+    return { m: mapPitch(n.m), t: n.s, d: e - n.s };
+  });
+  // 钢琴、吉他这类「敲一下就变弱」的乐器：像踩着延音踏板，前一个音继续响着叠进下一个音
+  if (!LEGATO[inst] || leg < 0.25) return notes.map(n => ({ i: inst, m: n.m, t: n.t, d: n.d + leg * 0.6, v }));
+  const ev = [];
+  let cur = null;
+  for (const n of notes) {
+    if (cur && n.t - (cur.t + cur.d) < 1e-3) { cur.phrase.push(n); cur.d = n.t + n.d - cur.t; }
+    else { cur = { i: inst, m: n.m, t: n.t, d: n.d, v, phrase: [n] }; ev.push(cur); }
+  }
+  return ev;
+}
 function trackEvents(tr, s) {
   const ev = [], beat = s.beat, o = tr.oct * 12;
   const push = (m, t, d, v) => ev.push({ i: tr.inst, m: m + o, t, d, v });
-  if (tr.kind === 'mel' || tr.kind === 'mel2') { for (const n of (tr.kind === 'mel' ? s.mel : s.mel2)) push(n.m, n.s, n.e - n.s, 0.8); return ev; }
-  if (tr.kind === 'harm') { for (const n of s.mel) push(thirdAbove(n.m, s.key), n.s, n.e - n.s, 0.55); return ev; }
+  if (tr.kind === 'mel' || tr.kind === 'mel2') return melodyEvents(tr.kind === 'mel' ? s.mel : s.mel2, tr.inst, 0.8, s, m => m + o);
+  if (tr.kind === 'harm') return melodyEvents(s.mel, tr.inst, 0.55, s, m => thirdAbove(m, s.key) + o);
   if (tr.kind === 'drums') return drumEvents(tr.pat, s);
   for (const ch of s.chords) {
     let b = 36 + ch.root; if (b > 43) b -= 12;
@@ -1183,8 +1205,9 @@ const INST = {
   piano(ctx, out, m, t, d, v) {
     const f = mtof(m), T = clamp(2.6 - (m - 60) * 0.04, 0.5, 4), end = t + d;
     const g = ctx.createGain();
+    // 真钢琴的两段衰减：敲下去先回落一点，然后是很长的余音（不会一个音还没完就弱没了）
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v * 0.5, t + 0.005);
-    g.gain.setTargetAtTime(0, t + 0.005, T / 3); g.gain.setTargetAtTime(0, end, 0.12);
+    g.gain.setTargetAtTime(v * 0.26, t + 0.005, 0.12); g.gain.setTargetAtTime(0, t + 0.35, T * 0.9); g.gain.setTargetAtTime(0, Math.max(end, t + 0.36), 0.12);
     const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.3;
     lp.frequency.setValueAtTime(Math.min(f * 10, 15000), t); lp.frequency.setTargetAtTime(Math.min(f * 3, 15000), t, 0.4);
     lp.connect(g); g.connect(out);
@@ -1416,8 +1439,78 @@ const INST = {
   },
 };
 
+// 连奏音色：一句话用同一组振荡器连着发声，换音时滑过去（glide），同音重复时轻轻断一下；
+// osc：[波形, 倍频, 音量, 微调音分]；lp：跟着音高走的低通；vib：[颤音速度, 音分]
+const LEGATO = {
+  flute:    { osc: [['sine', 1, 1], ['triangle', 2, 0.08]], lp: f => f * 6, gain: 0.35, att: 0.06, rel: 0.12, glide: 0.06, vib: [5, 14], breath: 0.1 },
+  strings:  { osc: [['sawtooth', 1, 0.5, -7], ['sawtooth', 1, 0.5, 7]], lp: f => f * 4 + 600, gain: 0.22, att: 0.14, rel: 0.35, glide: 0.08, vib: [5.2, 8] },
+  erhu:     { osc: [['sawtooth', 1, 1]], hp: 350, peak: [1100, 8], lp: () => 3200, gain: 0.24, att: 0.08, rel: 0.15, glide: 0.12, vib: [6, 22] },
+  clarinet: { osc: [['square', 1, 1]], lp: f => f * 4, gain: 0.2, att: 0.04, rel: 0.08, glide: 0.05, vib: [5, 5] },
+  brass:    { osc: [['sawtooth', 1, 0.5, -5], ['sawtooth', 1, 0.5, 5]], lp: f => f * 4, gain: 0.3, att: 0.04, rel: 0.12, glide: 0.05, vib: [5, 6] },
+  whistle:  { osc: [['sine', 1, 1]], gain: 0.3, att: 0.04, rel: 0.08, glide: 0.06, vib: [6, 18] },
+  choir:    { osc: [['sawtooth', 1, 0.33, -9], ['sawtooth', 1, 0.33, 0], ['sawtooth', 1, 0.33, 9]], formants: [[750, 6, 1], [1150, 8, 0.6], [2700, 10, 0.3]], gain: 1.8, att: 0.15, rel: 0.3, glide: 0.08, vib: [5, 10] },
+  lead:     { osc: [['sawtooth', 1, 0.5, -12], ['sawtooth', 1, 0.5, 12]], lp: f => Math.min(f * 6, 9000), q: 2, gain: 0.25, att: 0.01, rel: 0.1, glide: 0.06, vib: [5.5, 14] },
+  warmpad:  { osc: [['sawtooth', 1, 0.6, -10], ['sawtooth', 1, 0.6, 0], ['sawtooth', 1, 0.6, 10]], lp: f => Math.min(f * 2 + 400, 4000), gain: 0.3, att: 0.3, rel: 0.6, glide: 0.1 },
+  organ:    { osc: [['sine', 0.5, 0.5], ['sine', 1, 1], ['sine', 2, 0.6], ['sine', 3, 0.3], ['sine', 4, 0.2]], gain: 0.22, att: 0.015, rel: 0.08, glide: 0.02, vib: [6.5, 6] },
+  chip:     { osc: [['square', 1, 1]], gain: 0.22, att: 0.005, rel: 0.03, glide: 0.015 },
+};
+function legatoVoice(ctx, out, P, notes, v) {
+  const t0 = notes[0].t, last = notes[notes.length - 1], t1 = last.t + last.d, stopAt = t1 + P.rel * 4 + 0.1;
+  const peak = v * P.gain, fq = m => mtof(m);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(peak, t0 + Math.min(P.att, notes[0].d * 0.5));
+  // 换音时靠滑音过去，音量不断；只有同一个音重复时轻轻断一下，不然听不出是两个音
+  notes.forEach((n, i) => {
+    if (!i || n.m !== notes[i - 1].m) return;
+    g.gain.setTargetAtTime(peak * 0.55, n.t - 0.035, 0.012); g.gain.setTargetAtTime(peak, n.t + 0.005, 0.025);
+  });
+  g.gain.setTargetAtTime(0, t1, P.rel / 3);
+  g.connect(out);
+  // 音色链：振荡器 → [高通] → [峰值] → [低通] → [人声共振峰] → 包络
+  let head = g;
+  if (P.formants) {
+    const src = ctx.createGain();
+    for (const [ff, q, a] of P.formants) { const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = ff; bp.Q.value = q; const ag = ctx.createGain(); ag.gain.value = a; src.connect(bp); bp.connect(ag); ag.connect(g); }
+    head = src;
+  }
+  let lp = null;
+  if (P.lp) {
+    lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = P.q || 0.7; lp.frequency.setValueAtTime(P.lp(fq(notes[0].m)), t0);
+    notes.forEach((n, i) => { if (i) lp.frequency.setTargetAtTime(P.lp(fq(n.m)), n.t - P.glide * 0.3, P.glide / 3); });
+    lp.connect(head); head = lp;
+  }
+  if (P.peak) { const pk = ctx.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = P.peak[0]; pk.Q.value = 1.2; pk.gain.value = P.peak[1]; pk.connect(head); head = pk; }
+  if (P.hp) { const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = P.hp; hp.connect(head); head = hp; }
+  // 颤音：长一点的音才慢慢加上
+  let vib = null;
+  if (P.vib) {
+    const lfo = ctx.createOscillator(); lfo.frequency.value = P.vib[0];
+    vib = ctx.createGain(); vib.gain.setValueAtTime(0, t0);
+    notes.forEach(n => { if (n.d > 0.35) { vib.gain.setTargetAtTime(0, n.t, 0.03); vib.gain.setTargetAtTime(P.vib[1], n.t + 0.25, 0.15); } else vib.gain.setTargetAtTime(0, n.t, 0.03); });
+    lfo.connect(vib); lfo.start(t0); lfo.stop(stopAt);
+  }
+  for (const [type, mul, amp, det] of P.osc) {
+    const o = ctx.createOscillator(); o.type = type; o.detune.value = det || 0;
+    o.frequency.setValueAtTime(fq(notes[0].m) * mul, t0);
+    // 换音：提前一点点开始滑，正好在音符开始时到位
+    notes.forEach((n, i) => { if (i && n.m !== notes[i - 1].m) o.frequency.setTargetAtTime(fq(n.m) * mul, n.t - P.glide * 0.5, P.glide / 3); });
+    if (vib) vib.connect(o.detune);
+    const ag = ctx.createGain(); ag.gain.value = amp; o.connect(ag); ag.connect(head);
+    o.start(t0); o.stop(stopAt);
+  }
+  if (P.breath) {   // 长笛的气声
+    const n = ctx.createBufferSource(); n.buffer = noise(ctx); n.loop = true;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = fq(notes[0].m) * 1.5; bp.Q.value = 1;
+    const ng = ctx.createGain(); ng.gain.setValueAtTime(v * P.breath, t0); ng.gain.setTargetAtTime(v * P.breath * 0.15, t0, 0.08);
+    notes.forEach((x, i) => { if (i) { bp.frequency.setTargetAtTime(fq(x.m) * 1.5, x.t, 0.03); if (x.m === notes[i - 1].m) { ng.gain.setTargetAtTime(v * P.breath * 0.6, x.t, 0.01); ng.gain.setTargetAtTime(v * P.breath * 0.15, x.t + 0.04, 0.06); } } });
+    ng.gain.setTargetAtTime(0, t1, 0.05);
+    n.connect(bp); bp.connect(ng); ng.connect(out); n.start(t0); n.stop(stopAt);
+  }
+}
+
 // 拨弦类（Karplus-Strong）：每个音高只算一次，缓存起来
-const PLUCK = { guitar: { len: 3, decay: 0.996, bright: 0.6, gain: 0.85, rel: 0.08 }, harp: { len: 4, decay: 0.9985, bright: 0.25, gain: 0.7, rel: 0.35 }, guzheng: { len: 3.5, decay: 0.997, bright: 0.9, gain: 0.8, rel: 0.2, vib: true } };
+// t60：这根弦响多久衰减到听不见（秒）。按音高换算每圈的衰减，高音不会一弹就没
+const PLUCK = { guitar: { len: 4, t60: 3.6, bright: 0.6, gain: 0.85, rel: 0.08 }, harp: { len: 4, t60: 3.5, bright: 0.25, gain: 0.7, rel: 0.35 }, guzheng: { len: 3.5, t60: 2.8, bright: 0.9, gain: 0.8, rel: 0.2, vib: true } };
 const pluckCache = new Map();
 function pluckBuf(ctx, kind, m) {
   const sr = ctx.sampleRate, key = sr + ':' + kind + ':' + m;
@@ -1430,9 +1523,10 @@ function pluckBuf(ctx, kind, m) {
   let peak = 1e-6;
   for (let i = 0; i <= N + 1; i++) { y[i] -= mean; peak = Math.max(peak, Math.abs(y[i])); }
   for (let i = 0; i <= N + 1; i++) y[i] /= peak;
+  const decay = Math.pow(0.001, 1 / (P.t60 * mtof(m)));
   for (let i = N + 2; i < len; i++) {
     const a = y[i - N] * (1 - fr) + y[i - N - 1] * fr, c = y[i - N - 1] * (1 - fr) + y[i - N - 2] * fr;
-    y[i] = P.decay * 0.5 * (a + c);
+    y[i] = decay * 0.5 * (a + c);
   }
   pluckCache.set(key, b); return b;
 }
@@ -1639,6 +1733,12 @@ function renderSong(ctx, dest, at, s, from = 0, onlyAudible = false) {
     }
     g.connect(mix);
     for (const e of trackEvents(tr, s)) {
+      if (e.phrase) {
+        // 一句里从播放位置之后的音才要；从句子中间开始放时，第一个音从播放位置开始
+        const ns = e.phrase.filter(n => n.t + n.d > from + 1e-3).map(n => ({ m: n.m, t: at + Math.max(n.t, from) - from, d: n.t + n.d - Math.max(n.t, from) }));
+        if (ns.length) legatoVoice(ctx, g, LEGATO[e.i], ns, e.v);
+        continue;
+      }
       if (e.t < from - 1e-3) continue;
       if (e.dr) DRUM[e.dr](ctx, g, at + e.t - from, e.v);
       else INST[e.i](ctx, g, e.m, at + e.t - from, e.d, e.v);
@@ -1809,7 +1909,7 @@ $('mid').onclick = () => {
       { tick: 0, ord: 0, data: [0xB0 | ch, 7, clamp(tr.vol, 0, 127)] },
     ];
     if (!drums) evs.push({ tick: 0, ord: 0, data: [0xC0 | ch, PROG[tr.inst]] });
-    for (const e of trackEvents(tr, s)) {
+    for (const e of trackEvents(tr, s).flatMap(e => e.phrase ? e.phrase.map(n => ({ ...n, v: e.v })) : [e])) {
       const m = e.dr ? DRUM_NOTE[e.dr] : clamp(e.m, 0, 127), vel = clamp(Math.round(e.v * 110) + 10, 1, 127);
       const on = tk(e.t), off = Math.max(on + 1, tk(e.t + (e.dr ? 0.05 : e.d)));
       evs.push({ tick: on, ord: 2, data: [0x90 | ch, m, vel] }, { tick: off, ord: 1, data: [0x80 | ch, m, 0] });
@@ -2159,7 +2259,7 @@ $('blend2').oninput = () => {
 };
 $('blend2').addEventListener('change', () => restart());
 $('accAmt').oninput = () => { $('accVal').textContent = $('accAmt').value + '%'; applyGains(); autosave(); };
-for (const id of ['blend', 'accAmt', 'rev']) $(id).addEventListener('change', () => restart());
+for (const id of ['blend', 'accAmt', 'rev', 'legato']) $(id).addEventListener('change', () => { autosave(); restart(); });
 $('rev').oninput = () => { if (S.play) S.play.rg.gain.setTargetAtTime($('rev').value / 100, getCtx().currentTime, 0.05); autosave(); };
 
 // ---------- 自动保存（存在这台设备的 IndexedDB 里，关掉页面再打开还在） ----------
@@ -2180,7 +2280,7 @@ function unpackBuf(p) {
   p.ch.forEach((d, i) => b.copyToChannel(d, i));
   return b;
 }
-const SETTINGS = ['bpm', 'grid', 'key', 'sens', 'chordRate', 'rev', 'style', 'blend', 'accAmt', 'blend2'];
+const SETTINGS = ['bpm', 'grid', 'key', 'sens', 'chordRate', 'rev', 'style', 'blend', 'accAmt', 'blend2', 'legato'];
 let saveTimer = null, restoring = false;
 function autosave() {
   // 作品改了，之前录好的视频就过时了
