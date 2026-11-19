@@ -341,7 +341,7 @@ body.hasT{padding-bottom:96px}
   </ul>
   <p class="muted" id="proWhy"></p>
   <div class="buyRow">
-    <span class="muted">还没有密钥？在小红书搜「ADHD管家」，在主页商品里买「哼哼」，付款后会收到密钥。</span>
+    <span class="muted">还没有密钥？在小红书搜「ADHD乐园」，在主页商品里买「哼哼」，付款后会收到密钥。</span>
     <a class="ghost" id="buyLink" target="_blank" rel="noopener">去小红书购买 →</a>
   </div>
   <form id="proForm">
@@ -2154,7 +2154,7 @@ const FREE_PRESETS = new Set(['piano', 'none']);
 const FREE_KINDS = new Set(['mel', 'pad', 'arp', 'bass', 'orig', 'mel2', 'orig2']);
 const FREE_TRACKS = 5, PRO_TRACKS = 15;
 const PRO_STORE = 'hum.unlock';
-// 小红书账号「ADHD管家」个人售卖的「哼哼」商品页（换链接只改这一行）。还没填时，按钮改成「复制账号名去小红书搜」
+// 小红书账号「ADHD乐园」个人售卖的「哼哼」商品页（换链接只改这一行）。还没填时，按钮改成「复制账号名去小红书搜」
 const SHOP_URL = '';
 const PRICE_PACK = 5, PACK_SIZE = 8, PRICE_ALL = 10;
 if (SHOP_URL) $('buyLink').href = SHOP_URL;
@@ -2163,8 +2163,8 @@ else {
   $('buyLink').removeAttribute('href');
   $('buyLink').onclick = async e => {
     e.preventDefault();
-    try { await navigator.clipboard.writeText('ADHD管家'); $('proErr').textContent = '已复制账号名「ADHD管家」✓ 打开小红书搜索，进主页的商品里就能找到「哼哼」。'; }
-    catch (err) { $('proErr').textContent = '打开小红书搜「ADHD管家」，在主页商品里就能找到「哼哼」。'; }
+    try { await navigator.clipboard.writeText('ADHD乐园'); $('proErr').textContent = '已复制账号名「ADHD乐园」✓ 打开小红书搜索，进主页的商品里就能找到「哼哼」。'; }
+    catch (err) { $('proErr').textContent = '打开小红书搜「ADHD乐园」，在主页商品里就能找到「哼哼」。'; }
   };
 }
 let PRO = (() => { try { return HUM_KEY_HASHES.includes(localStorage.getItem(PRO_STORE)); } catch (e) { return false; } })();
