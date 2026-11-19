@@ -21,7 +21,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=2">
 <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png?v=2">
 <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png?v=2">
-<script src="keys.js?v=2"></script>
+<script src="keys.js?v=3"></script>
 <style>
 /* 视觉：包豪斯（红黄蓝几何、粗线、网格）× Y2K（镭射渐变、铬银字、像素字、胶囊按钮、硬投影） */
 @font-face{font-family:"Rubik Mono One";src:url(fonts/rubik-mono-one.woff2) format("woff2");font-display:swap}
@@ -154,6 +154,7 @@ dialog input[type=text]{font:20px "VT323",monospace;letter-spacing:.12em;width:1
 .work .wh{font-size:13px;color:var(--muted);margin:4px 0}
 .work input{font:inherit;font-size:13px;width:100%;border:1.5px solid var(--line);border-radius:10px;padding:5px 8px;background:var(--card);color:var(--ink)}
 .work .tbtn{width:26px;height:26px;font-size:14px}
+#packUse{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0 4px;padding:10px 12px;border:2.5px dashed var(--edge);border-radius:14px}
 #buyLink{white-space:nowrap;color:#fff;background:var(--blue);border-color:var(--edge);box-shadow:3px 3px 0 var(--shadow);font-size:13px}
 #installDlg ol,#appDlg ol{padding-left:20px}
 #appDlg li{padding-left:0}
@@ -324,8 +325,12 @@ body.hasT{padding-bottom:96px}
   <span class="badge">一次购买 · 终身使用</span>
   <h3 id="proTitle">解锁哼哼完整版</h3>
   <div class="priceRow">
-    <div class="price" id="priceOne" hidden><span id="priceOneName">这个音色</span><b>¥2</b><small>单独解锁</small></div>
-    <div class="price all"><span>全部解锁</span><b>¥20</b><small>23 种音色 + 所有功能</small></div>
+    <div class="price"><span>任选 8 个音色</span><b>¥5</b><small>想要哪个点哪个</small></div>
+    <div class="price all"><span>全部解锁</span><b>¥10</b><small>23 种音色 + 所有功能</small></div>
+  </div>
+  <div id="packUse" hidden>
+    <button type="button" class="btn primary" id="packUseBtn">用 1 个名额解锁</button>
+    <span class="muted" id="packLeft"></span>
   </div>
   <ul>
     <li>全部 23 种音色：古筝、二胡、吉他、电钢琴、人声合唱…</li>
@@ -336,11 +341,11 @@ body.hasT{padding-bottom:96px}
   </ul>
   <p class="muted" id="proWhy"></p>
   <div class="buyRow">
-    <span class="muted">还没有密钥？在小红书店铺「ADHD管家」买「哼哼」，付款后自动发送密钥。</span>
+    <span class="muted">还没有密钥？在小红书搜「ADHD管家」，在主页商品里买「哼哼」，付款后会收到密钥。</span>
     <a class="ghost" id="buyLink" target="_blank" rel="noopener">去小红书购买 →</a>
   </div>
   <form id="proForm">
-    <input type="text" id="proCode" autocomplete="off" autocapitalize="characters" placeholder="输入密钥，例如 HM-XXXXXX 或 HY-XXXXXX">
+    <input type="text" id="proCode" autocomplete="off" autocapitalize="characters" placeholder="输入密钥，例如 HM-XXXXXX 或 HB-XXXXXX">
     <div class="err" id="proErr"></div>
     <div class="dlgBtns">
       <button type="button" class="btn" id="proCancel">先用免费版</button>
@@ -2149,34 +2154,51 @@ const FREE_PRESETS = new Set(['piano', 'none']);
 const FREE_KINDS = new Set(['mel', 'pad', 'arp', 'bass', 'orig', 'mel2', 'orig2']);
 const FREE_TRACKS = 5, PRO_TRACKS = 15;
 const PRO_STORE = 'hum.unlock';
-// 小红书店铺「ADHD管家」里「哼哼」的商品页（换链接只改这一行）。还没上架时，按钮改成「复制店名去小红书搜」
+// 小红书账号「ADHD管家」个人售卖的「哼哼」商品页（换链接只改这一行）。还没填时，按钮改成「复制账号名去小红书搜」
 const SHOP_URL = '';
-const PRICE_ONE = 2, PRICE_ALL = 20;
+const PRICE_PACK = 5, PACK_SIZE = 8, PRICE_ALL = 10;
 if (SHOP_URL) $('buyLink').href = SHOP_URL;
 else {
-  $('buyLink').textContent = '复制店名，去小红书搜 →';
+  $('buyLink').textContent = '复制账号名，去小红书搜 →';
   $('buyLink').removeAttribute('href');
   $('buyLink').onclick = async e => {
     e.preventDefault();
-    try { await navigator.clipboard.writeText('ADHD管家'); $('proErr').textContent = '已复制店名「ADHD管家」✓ 打开小红书搜索，进店就能找到「哼哼」。'; }
-    catch (err) { $('proErr').textContent = '打开小红书搜「ADHD管家」，进店就能找到「哼哼」。'; }
+    try { await navigator.clipboard.writeText('ADHD管家'); $('proErr').textContent = '已复制账号名「ADHD管家」✓ 打开小红书搜索，进主页的商品里就能找到「哼哼」。'; }
+    catch (err) { $('proErr').textContent = '打开小红书搜「ADHD管家」，在主页商品里就能找到「哼哼」。'; }
   };
 }
 let PRO = (() => { try { return HUM_KEY_HASHES.includes(localStorage.getItem(PRO_STORE)); } catch (e) { return false; } })();
-// 单独买的音色：{ 音色id: 密钥摘要 }，摘要对得上才算数
-// keys.js 可能是旧缓存（里面还没有单个音色的密钥），读不到就当没有，别报错
-const ITEM_HASHES = typeof HUM_ITEM_HASHES !== 'undefined' ? HUM_ITEM_HASHES : {};
-const OWN_STORE = 'hum.owned';
-let OWNED = (() => { try { const o = JSON.parse(localStorage.getItem(OWN_STORE)) || {}; return new Set(Object.keys(o).filter(k => (ITEM_HASHES[k] || []).includes(o[k]))); } catch (e) { return new Set(); } })();
-const instFree = v => FREE_INST.has(v) || OWNED.has(v);
+// 「任选 8 个音色」：输一个 HB- 密钥得 8 个名额，用户点哪个锁着的音色就用一个名额解锁哪个。
+// 存在 localStorage：{ keys: [密钥摘要…], picks: [音色id…] }；摘要对得上的密钥才算名额。
+// keys.js 可能是旧缓存（里面还没有这批密钥），读不到就当没有，别报错
+const PACK_HASHES = typeof HUM_PACK_HASHES !== 'undefined' ? HUM_PACK_HASHES : [];
+const PACK_STORE = 'hum.pack';
+function loadPack() {
+  try { const o = JSON.parse(localStorage.getItem(PACK_STORE)) || {}; const keys = (o.keys || []).filter(h => PACK_HASHES.includes(h)); return { keys, picks: (o.picks || []).slice(0, keys.length * PACK_SIZE) }; }
+  catch (e) { return { keys: [], picks: [] }; }
+}
+let PACK = loadPack();
+const savePack = () => { try { localStorage.setItem(PACK_STORE, JSON.stringify(PACK)); } catch (e) {} };
+const packLeft = () => PACK.keys.length * PACK_SIZE - PACK.picks.length;
+const instFree = v => FREE_INST.has(v) || PACK.picks.includes(v);
+function usePack(inst) {
+  if (!inst || packLeft() <= 0 || PACK.picks.includes(inst)) return false;
+  PACK.picks.push(inst); savePack(); syncPro();
+  setStatus('🎉 已解锁「' + INST_NAME[inst] + '」，还剩 ' + packLeft() + ' 个名额。');
+  runAfterUnlock();
+  return true;
+}
 const lockMark = free => free || PRO ? '' : '🔒 ';
 let wantInst = null;   // 点开解锁框时，用户想要的是哪个音色
+let afterUnlock = null; // 解锁成功后要做的事（比如把那条音轨换成刚选的音色）
+const runAfterUnlock = () => { const f = afterUnlock; afterUnlock = null; if (f) f(); };
 function needPro(why, inst = null) {
   if (PRO) return true;
   wantInst = inst;
   $('proTitle').textContent = inst ? '解锁「' + INST_NAME[inst] + '」' : '解锁哼哼完整版';
-  $('priceOne').hidden = !inst;
-  if (inst) $('priceOneName').textContent = '只要「' + INST_NAME[inst] + '」';
+  // 已经买过「任选 8 个」还有名额：直接给一个「用名额解锁」的按钮
+  $('packUse').hidden = !(inst && packLeft() > 0);
+  if (inst) { $('packUseBtn').textContent = '用 1 个名额解锁「' + INST_NAME[inst] + '」'; $('packLeft').textContent = '还剩 ' + packLeft() + ' 个名额'; }
   $('proWhy').textContent = why ? why + '。' : '';
   $('proErr').textContent = ''; $('proCode').value = '';
   $('proDlg').showModal();
@@ -2189,7 +2211,9 @@ function syncPro() {
   renderPresets(); renderTracks();
 }
 $('proBtn').onclick = () => { if (!PRO) needPro(''); };
+$('packUseBtn').onclick = () => { if (usePack(wantInst)) $('proDlg').close(); };
 $('proCancel').onclick = () => $('proDlg').close();
+$('proDlg').addEventListener('close', () => setTimeout(() => { afterUnlock = null; }, 0));
 $('proForm').onsubmit = async e => {
   e.preventDefault();
   const code = $('proCode').value.trim().toUpperCase().replace(/[\s"'“”「」:：]+/g, '');
@@ -2199,17 +2223,17 @@ $('proForm').onsubmit = async e => {
     try { localStorage.setItem(PRO_STORE, h); } catch (err) {}
     PRO = true; $('proDlg').close(); syncPro();
     setStatus('🎉 已解锁全部，终身可用。以后新增的音色和功能也会自动更新给你。');
+    runAfterUnlock();
     return;
   }
-  // 单个音色的密钥：看它是哪个音色的
-  for (const [inst, list] of Object.entries(ITEM_HASHES)) {
-    const b2 = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('hum:' + inst + ':' + code));
-    const h2 = [...new Uint8Array(b2)].map(b => b.toString(16).padStart(2, '0')).join('');
-    if (!list.includes(h2)) continue;
-    OWNED.add(inst);
-    try { const o = JSON.parse(localStorage.getItem(OWN_STORE)) || {}; o[inst] = h2; localStorage.setItem(OWN_STORE, JSON.stringify(o)); } catch (err) {}
-    $('proDlg').close(); syncPro();
-    setStatus('🎉 已解锁「' + INST_NAME[inst] + '」，终身可用。');
+  // 「任选 8 个音色」的密钥：加 8 个名额；如果是点着某个音色进来的，顺手先解锁它
+  const b2 = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('hum:pack8:' + code));
+  const h2 = [...new Uint8Array(b2)].map(b => b.toString(16).padStart(2, '0')).join('');
+  if (PACK_HASHES.includes(h2)) {
+    if (PACK.keys.includes(h2)) { $('proErr').textContent = '这个密钥已经用过了，还剩 ' + packLeft() + ' 个名额：点想要的 🔒 音色就能用。'; return; }
+    PACK.keys.push(h2); savePack();
+    $('proDlg').close();
+    if (!usePack(wantInst)) { syncPro(); setStatus('🎉 已加上 ' + PACK_SIZE + ' 个音色名额：在音色下拉框里点想要的 🔒 音色就能解锁（还剩 ' + packLeft() + ' 个）。'); }
     return;
   }
   $('proErr').textContent = '密钥不对，再核对一下收到的那串字母和数字。';
@@ -2227,7 +2251,12 @@ function makeSelect(opts, val, onChange, isFree = () => true, why = '', price = 
   }
   sel.value = val;
   sel.onchange = () => {
-    if (!isFree(sel.value) && !needPro(why, price ? sel.value : null)) { sel.value = val; return; }
+    if (!isFree(sel.value)) {
+      const chosen = sel.value;
+      afterUnlock = () => onChange(chosen);   // 解锁成功后直接换上
+      if (!needPro(why, opts === INST_GROUPS ? chosen : null)) { sel.value = val; return; }
+      afterUnlock = null;
+    }
     onChange(sel.value);
   };
   return sel;
@@ -2242,7 +2271,7 @@ function renderTracks() {
     const name = (tr.kind === 'audio' ? '🎵 ' + tr.name : tr.kind === 'orig' && !S.buf ? K.name + '（未载入）' : K.name) + (on(tr) ? '' : tr.mute ? ' · 静音中' : ' · 没在听');
     row.append(el('div', { className: 'tname', textContent: name, title: name }));
     const set = (key, rerender) => v => { tr[key] = v; markCustom(); if (rerender) renderTracks(); restart(); };
-    if (tr.inst) row.append(makeSelect(INST_GROUPS, tr.inst, set('inst'), instFree, '单独解锁这个音色 ¥' + PRICE_ONE + '，或者 ¥' + PRICE_ALL + ' 解锁全部', '¥' + PRICE_ONE));
+    if (tr.inst) row.append(makeSelect(INST_GROUPS, tr.inst, set('inst'), instFree, '任选 ' + PACK_SIZE + ' 个音色 ¥' + PRICE_PACK + '，或者 ¥' + PRICE_ALL + ' 解锁全部', packLeft() > 0 ? '可用名额' : ''));
     if (K.pats) row.append(makeSelect(Object.entries(K.pats).map(([v, t]) => ({ v, t })), tr.pat, set('pat')));
     if (!K.audio && !K.drums) row.append(makeSelect([-2, -1, 0, 1, 2].map(v => ({ v, t: v ? (v > 0 ? '高' : '低') + Math.abs(v) + ' 个八度' : '原八度' })), tr.oct, v => set('oct')(+v)));
     if (K.audio) {

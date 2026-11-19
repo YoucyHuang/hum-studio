@@ -1,6 +1,6 @@
 /* 哼唱编曲台 · 离线缓存：装到主屏幕后没网也能打开 */
-const CACHE = "hum-studio-v15";
-const ASSETS = ["./", "./index.html", "./manifest.json?v=2", "./keys.js?v=2", "./icon-192.png?v=2", "./icon-512.png?v=2", "./apple-touch-icon.png?v=2", "./favicon-32.png?v=2",
+const CACHE = "hum-studio-v16";
+const ASSETS = ["./", "./index.html", "./manifest.json?v=2", "./keys.js?v=3", "./icon-192.png?v=2", "./icon-512.png?v=2", "./apple-touch-icon.png?v=2", "./favicon-32.png?v=2",
   "./fonts/rubik-mono-one.woff2", "./fonts/vt323.woff2", "./fonts/jost.woff2"];
 self.addEventListener("install", (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())));
 self.addEventListener("activate", (e) => e.waitUntil(caches.keys()
